@@ -2,19 +2,26 @@ package com.gill.soundboard;
 
 import android.Manifest;
 import android.app.Activity;
-import android.content.Intent;
 import android.content.ClipData;
+import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.res.ColorStateList;
 import android.database.Cursor;
 import android.graphics.Color;
-import android.graphics.drawable.GradientDrawable;
+import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.OpenableColumns;
 import android.provider.Settings;
+import android.text.Editable;
+import android.text.TextWatcher;
+import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.EditText;
+import android.widget.HorizontalScrollView;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.SeekBar;
@@ -24,164 +31,311 @@ import java.util.List;
 
 public final class MainActivity extends Activity {
     private static final int PICK_AUDIO=41;
+    private static final String[] GROUP_NAMES={"ALL","BASS","FUNNY","DRAMA","ARCADE","EFFECTS","ALERTS","CUSTOM"};
     private boolean openAfterPermission=false;
-    private LinearLayout clipsArea;
+    private LinearLayout soundGrid;
+    private LinearLayout chipRow;
     private TextView overlayStatus;
-    private static final int BG=Color.rgb(16,17,23);
-    private static final int CARD=Color.rgb(33,34,43);
-    private static final int ORANGE=Color.rgb(255,124,48);
-    private static final int WHITE=Color.rgb(244,243,241);
-    private static final int MUTED=Color.rgb(174,177,185);
+    private String query="";
+    private int selectedGroup=0;
+    private final int BG=BrandStyle.BG, PANEL=BrandStyle.PANEL, CARD=BrandStyle.CARD,
+        PURPLE=BrandStyle.PURPLE, WHITE=BrandStyle.WHITE, DIM=BrandStyle.DIM;
 
     private int dp(float x){return Math.round(x*getResources().getDisplayMetrics().density);}
-    private GradientDrawable bg(int color,int radius){
-        GradientDrawable g=new GradientDrawable();
-        g.setColor(color);
-        g.setCornerRadius(dp(radius));
-        return g;
+    private TextView text(String content,int size,int color,boolean bold){
+        TextView t=new TextView(this);
+        t.setText(content);
+        t.setTextColor(color);
+        t.setTextSize(size);
+        t.setGravity(Gravity.CENTER_VERTICAL);
+        if(bold)t.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
+        return t;
     }
-    private TextView label(String text,int size,int color){
-        TextView v=new TextView(this);
-        v.setText(text);
-        v.setTextSize(size);
-        v.setTextColor(color);
-        v.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        return v;
+    private void space(LinearLayout parent,int height){
+        parent.addView(new View(this),new LinearLayout.LayoutParams(1,dp(height)));
     }
-    private TextView button(String text,boolean accent){
-        TextView b=label(text,13,accent?BG:WHITE);
-        b.setGravity(android.view.Gravity.CENTER);
-        b.setPadding(dp(12),dp(12),dp(12),dp(12));
-        b.setBackground(bg(accent?ORANGE:CARD,11));
+    private TextView button(String s,boolean filled,int icon){
+        TextView b=text(s,13,filled?BG:WHITE,true);
+        b.setGravity(Gravity.CENTER);
+        b.setPadding(dp(13),dp(11),dp(13),dp(11));
+        b.setBackground(filled?BrandStyle.accent(dp(13)):BrandStyle.bg(CARD,dp(13),true));
+        if(icon>=0){
+            android.graphics.drawable.Drawable d=BrandStyle.icon(icon,dp(19),filled?BG:BrandStyle.LAVENDER);
+            b.setCompoundDrawables(d,null,null,null);
+            b.setCompoundDrawablePadding(dp(9));
+        }
         b.setClickable(true);
         return b;
     }
-    private void addSpace(LinearLayout root,int height){
-        View v=new View(this);
-        root.addView(v,new LinearLayout.LayoutParams(1,dp(height)));
-    }
-    @Override public void onCreate(Bundle state){
-        super.onCreate(state);
+    @Override public void onCreate(Bundle saved){
+        super.onCreate(saved);
         getWindow().setStatusBarColor(BG);
         getWindow().setNavigationBarColor(BG);
+        AudioEngine.prepare(this);
+
         ScrollView scroll=new ScrollView(this);
         scroll.setFillViewport(true);
         scroll.setBackgroundColor(BG);
-        LinearLayout content=new LinearLayout(this);
-        content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(dp(20),dp(28),dp(20),dp(36));
-        scroll.addView(content);
+        LinearLayout root=new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(dp(19),dp(24),dp(19),dp(32));
+        scroll.addView(root);
         setContentView(scroll);
-        AudioEngine.prepare(this);
 
-        TextView title=label("G I L L   /   S O U N D",24,WHITE);
-        title.setTypeface(null,1);
-        content.addView(title);
-        addSpace(content,7);
-        content.addView(label("NO ADS  |  FLOATING SOUNDBOARD",11,ORANGE));
-        addSpace(content,13);
-        TextView intro=label("24 built-in sounds are ready to play. Open the floating panel and tap or HOLD buttons to spam sounds. No importing required.",14,MUTED);
-        intro.setLineSpacing(dp(3),1f);
-        content.addView(intro);
-        addSpace(content,24);
+        LinearLayout brandRow=new LinearLayout(this);
+        brandRow.setOrientation(LinearLayout.HORIZONTAL);
+        brandRow.setGravity(Gravity.CENTER_VERTICAL);
+        root.addView(brandRow,new LinearLayout.LayoutParams(-1,dp(68)));
 
-        TextView start=button("OPEN FLOATING SOUNDBOARD",true);
-        content.addView(start,new LinearLayout.LayoutParams(-1,dp(50)));
+        ImageView mark=new ImageView(this);
+        mark.setImageResource(R.drawable.gill_logo);
+        mark.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        brandRow.addView(mark,new LinearLayout.LayoutParams(dp(64),dp(64)));
+        LinearLayout brandText=new LinearLayout(this);
+        brandText.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams brandParams=new LinearLayout.LayoutParams(0,-2,1);
+        brandParams.leftMargin=dp(10);
+        brandRow.addView(brandText,brandParams);
+        TextView title=text("GILL SOUNDBOARD",21,WHITE,true);
+        title.setLetterSpacing(.025f);
+        brandText.addView(title);
+        space(brandText,2);
+        TextView sub=text("INSTANT PLAYBACK  /  48 SOUNDS",10,BrandStyle.LAVENDER,true);
+        sub.setLetterSpacing(.06f);
+        brandText.addView(sub);
+        space(root,21);
+
+        LinearLayout hero=new LinearLayout(this);
+        hero.setOrientation(LinearLayout.VERTICAL);
+        hero.setPadding(dp(16),dp(17),dp(16),dp(18));
+        hero.setBackground(BrandStyle.bg(PANEL,dp(20),true));
+        root.addView(hero,new LinearLayout.LayoutParams(-1,-2));
+        LinearLayout badges=new LinearLayout(this);
+        badges.setGravity(Gravity.CENTER_VERTICAL);
+        hero.addView(badges);
+        TextView badge=text("●  READY TO PLAY",10,BrandStyle.GREEN,true);
+        badge.setPadding(dp(9),dp(6),dp(9),dp(6));
+        badge.setBackground(BrandStyle.bg(0xff20372f,dp(20),false));
+        badges.addView(badge);
+        TextView badge2=text("  NO ADS",10,BrandStyle.LAVENDER,true);
+        LinearLayout.LayoutParams b2=new LinearLayout.LayoutParams(-2,-2);
+        b2.leftMargin=dp(9);
+        badges.addView(badge2,b2);
+        space(hero,15);
+        TextView intro=text("Sound on demand.",21,WHITE,true);
+        hero.addView(intro);
+        space(hero,4);
+        TextView caption=text("Tap instantly. Hold to repeat in spam mode. No downloads, no setup.",12,DIM,false);
+        caption.setLineSpacing(dp(3),1f);
+        hero.addView(caption);
+        space(hero,16);
+        TextView start=button("OPEN FLOATING PANEL",true,7);
+        hero.addView(start,new LinearLayout.LayoutParams(-1,dp(51)));
         start.setOnClickListener(v->startPanel());
-        addSpace(content,8);
-
-        TextView stop=button("CLOSE FLOATING SOUNDBOARD",false);
-        content.addView(stop,new LinearLayout.LayoutParams(-1,dp(46)));
-        stop.setOnClickListener(v->{
+        space(hero,9);
+        TextView close=button("CLOSE FLOATING PANEL",false,8);
+        hero.addView(close,new LinearLayout.LayoutParams(-1,dp(42)));
+        close.setOnClickListener(v->{
             startService(new Intent(this,OverlayService.class).setAction(OverlayService.STOP));
             overlayStatus.setText("Floating panel closed.");
         });
-        addSpace(content,10);
-        overlayStatus=label("Open the panel and allow Display over other apps.",12,MUTED);
-        content.addView(overlayStatus);
-        addSpace(content,26);
+        space(hero,12);
+        overlayStatus=text("Enable “Display over other apps” on first launch.",11,DIM,false);
+        hero.addView(overlayStatus);
+        space(root,23);
 
-        TextView add=button("+ OPTIONAL: ADD CUSTOM FILES",false);
-        content.addView(add,new LinearLayout.LayoutParams(-1,dp(48)));
-        add.setOnClickListener(v->pickFiles());
-        addSpace(content,20);
+        LinearLayout line=new LinearLayout(this);
+        line.setGravity(Gravity.CENTER_VERTICAL);
+        root.addView(line);
+        TextView libraryTitle=text("SOUND LIBRARY",17,WHITE,true);
+        line.addView(libraryTitle,new LinearLayout.LayoutParams(0,-2,1));
+        TextView included=text("48 INCLUDED",10,BrandStyle.LAVENDER,true);
+        line.addView(included);
+        space(root,12);
 
-        content.addView(label("VOLUME",11,ORANGE));
+        LinearLayout searchWrap=new LinearLayout(this);
+        searchWrap.setGravity(Gravity.CENTER_VERTICAL);
+        searchWrap.setPadding(dp(12),0,dp(9),0);
+        searchWrap.setBackground(BrandStyle.bg(CARD,dp(12),true));
+        root.addView(searchWrap,new LinearLayout.LayoutParams(-1,dp(48)));
+        searchWrap.addView(BrandStyle.graphic(this,10,dp(19),BrandStyle.DIM),
+            new LinearLayout.LayoutParams(dp(22),dp(22)));
+        EditText search=new EditText(this);
+        search.setSingleLine(true);
+        search.setTextSize(13);
+        search.setTextColor(WHITE);
+        search.setHintTextColor(DIM);
+        search.setHint("Search sounds...");
+        search.setBackgroundColor(Color.TRANSPARENT);
+        search.setPadding(dp(8),0,0,0);
+        searchWrap.addView(search,new LinearLayout.LayoutParams(0,-1,1));
+        search.addTextChangedListener(new TextWatcher(){
+            @Override public void beforeTextChanged(CharSequence s,int a,int c,int f){}
+            @Override public void onTextChanged(CharSequence s,int a,int b,int c){
+                query=s.toString().toLowerCase(java.util.Locale.ROOT).trim();
+                renderSounds();
+            }
+            @Override public void afterTextChanged(Editable s){}
+        });
+        space(root,12);
+
+        HorizontalScrollView chips=new HorizontalScrollView(this);
+        chips.setHorizontalScrollBarEnabled(false);
+        root.addView(chips);
+        chipRow=new LinearLayout(this);
+        chipRow.setOrientation(LinearLayout.HORIZONTAL);
+        chips.addView(chipRow);
+        renderChips();
+        space(root,12);
+
+        soundGrid=new LinearLayout(this);
+        soundGrid.setOrientation(LinearLayout.VERTICAL);
+        root.addView(soundGrid);
+        renderSounds();
+        space(root,21);
+
+        LinearLayout volumeCard=new LinearLayout(this);
+        volumeCard.setOrientation(LinearLayout.VERTICAL);
+        volumeCard.setPadding(dp(13),dp(14),dp(13),dp(13));
+        volumeCard.setBackground(BrandStyle.bg(PANEL,dp(15),true));
+        root.addView(volumeCard);
+        TextView volLabel=text("PLAYBACK VOLUME",12,WHITE,true);
+        volumeCard.addView(volLabel);
         SeekBar volume=new SeekBar(this);
         volume.setMax(100);
         volume.setProgress(ClipStore.volume(this));
-        content.addView(volume);
+        volume.setProgressTintList(ColorStateList.valueOf(PURPLE));
+        volume.setThumbTintList(ColorStateList.valueOf(BrandStyle.LAVENDER));
+        volumeCard.addView(volume);
         volume.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
-            @Override public void onProgressChanged(SeekBar bar,int value,boolean user){
-                if(user)ClipStore.volume(MainActivity.this,value);
+            @Override public void onProgressChanged(SeekBar s,int v,boolean fromUser){
+                if(fromUser)ClipStore.volume(MainActivity.this,v);
             }
-            @Override public void onStartTrackingTouch(SeekBar bar){}
-            @Override public void onStopTrackingTouch(SeekBar bar){}
+            @Override public void onStartTrackingTouch(SeekBar s){}
+            @Override public void onStopTrackingTouch(SeekBar s){}
         });
-        addSpace(content,16);
+        TextView mute=button("STOP ALL AUDIO",false,8);
+        volumeCard.addView(mute,new LinearLayout.LayoutParams(-1,dp(44)));
+        mute.setOnClickListener(v->AudioEngine.stop());
+        space(root,16);
 
-        TextView section=label("YOUR SOUND BUTTONS",15,WHITE);
-        section.setTypeface(null,1);
-        content.addView(section);
-        addSpace(content,10);
-
-        clipsArea=new LinearLayout(this);
-        clipsArea.setOrientation(LinearLayout.VERTICAL);
-        content.addView(clipsArea);
-        addSpace(content,18);
-        TextView note=label("SPAM MODE: In the floating panel, turn SPAM ON, then hold any sound button for rapid repeats. Built-in clips overlap for instant replay. Sound uses Android media output; Roblox voice transmission is device-dependent.",12,MUTED);
-        note.setLineSpacing(dp(2),1f);
-        content.addView(note);
-        refreshClips();
+        TextView add=button("OPTIONAL  /  IMPORT YOUR OWN CLIPS",false,6);
+        root.addView(add,new LinearLayout.LayoutParams(-1,dp(45)));
+        add.setOnClickListener(v->pickFiles());
+        space(root,15);
+        TextView foot=text("Made for fast, ad-free playback. Android routes sounds as media audio; Roblox microphone transmission depends on the device.",11,DIM,false);
+        foot.setLineSpacing(dp(3),1f);
+        root.addView(foot);
     }
-    private void refreshClips(){
-        if(clipsArea==null)return;
-        clipsArea.removeAllViews();
-        List<ClipStore.Clip> all=ClipStore.get(this);
-        for(ClipStore.Clip clip:all){
-            LinearLayout line=new LinearLayout(this);
-            line.setOrientation(LinearLayout.HORIZONTAL);
-            LinearLayout.LayoutParams lineP=new LinearLayout.LayoutParams(-1,dp(48));
-            lineP.bottomMargin=dp(6);
-            clipsArea.addView(line,lineP);
-            TextView play=button(clip.name,false);
-            play.setSingleLine(true);
-            play.setEllipsize(android.text.TextUtils.TruncateAt.END);
-            LinearLayout.LayoutParams playP=new LinearLayout.LayoutParams(0,-1,1);
-            line.addView(play,playP);
-            play.setOnClickListener(v->AudioEngine.play(this,clip));
-            if(!clip.isPreset()){
-                TextView remove=button("REMOVE",false);
-                remove.setTextColor(ORANGE);
-                LinearLayout.LayoutParams removeP=new LinearLayout.LayoutParams(dp(85),-1);
-                removeP.leftMargin=dp(6);
-                line.addView(remove,removeP);
-                remove.setOnClickListener(v->{
-                    ClipStore.remove(this,clip.uri);
-                    refreshClips();
-                    refreshOverlay();
-                });
+
+    private void renderChips(){
+        if(chipRow==null)return;
+        chipRow.removeAllViews();
+        for(int i=0;i<GROUP_NAMES.length;i++){
+            final int group=i;
+            final boolean active=(i==selectedGroup);
+            TextView chip=text(GROUP_NAMES[i],11,active?BG:DIM,true);
+            chip.setGravity(Gravity.CENTER);
+            chip.setPadding(dp(12),0,dp(12),0);
+            chip.setBackground(active?BrandStyle.accent(dp(20)):
+                BrandStyle.bg(CARD,dp(20),false));
+            LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-2,dp(35));
+            cp.rightMargin=dp(7);
+            chipRow.addView(chip,cp);
+            chip.setOnClickListener(v->{
+                selectedGroup=group;
+                renderChips();
+                renderSounds();
+            });
+        }
+    }
+    private boolean visibleClip(ClipStore.Clip clip){
+        if(selectedGroup==7 && clip.isPreset())return false;
+        if(selectedGroup>=1 && selectedGroup<=6 &&
+            (!clip.isPreset() || clip.preset/8!=selectedGroup-1))return false;
+        if(selectedGroup==0 || selectedGroup==7 ||
+            (selectedGroup>=1 && selectedGroup<=6)){
+            return clip.name.toLowerCase(java.util.Locale.ROOT).contains(query);
+        }
+        return true;
+    }
+    private View tile(ClipStore.Clip clip){
+        int category=BrandStyle.categoryOf(clip);
+        int color=BrandStyle.categoryColor(category);
+        LinearLayout tile=new LinearLayout(this);
+        tile.setOrientation(LinearLayout.VERTICAL);
+        tile.setGravity(Gravity.CENTER_VERTICAL);
+        tile.setPadding(dp(13),dp(12),dp(9),dp(11));
+        tile.setBackground(BrandStyle.bg(CARD,dp(15),true));
+        LinearLayout top=new LinearLayout(this);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+        tile.addView(top,new LinearLayout.LayoutParams(-1,dp(31)));
+        TextView iconBG=text("",10,color,true);
+        iconBG.setGravity(Gravity.CENTER);
+        iconBG.setBackground(BrandStyle.bg(PANEL,dp(9),false));
+        top.addView(iconBG,new LinearLayout.LayoutParams(dp(32),dp(32)));
+        iconBG.setCompoundDrawables(null,null,null,null);
+        iconBG.setPadding(dp(6),dp(6),dp(6),dp(6));
+        iconBG.setBackground(BrandStyle.bg(PANEL,dp(9),false));
+        iconBG.setCompoundDrawables(BrandStyle.icon(category,dp(18),color),null,null,null);
+        TextView number=text(String.format(java.util.Locale.US,"%02d",clip.isPreset()?clip.preset+1:0),
+            10,DIM,false);
+        number.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
+        top.addView(number,new LinearLayout.LayoutParams(0,-1,1));
+        space(tile,10);
+        TextView name=text(clip.name,12,WHITE,true);
+        name.setSingleLine(true);
+        name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        tile.addView(name);
+        space(tile,4);
+        TextView hint=text("TAP TO PLAY",9,DIM,true);
+        tile.addView(hint);
+        tile.setClickable(true);
+        tile.setOnClickListener(v->AudioEngine.play(this,clip));
+        return tile;
+    }
+    private void renderSounds(){
+        if(soundGrid==null)return;
+        soundGrid.removeAllViews();
+        List<ClipStore.Clip> sounds=ClipStore.get(this);
+        java.util.ArrayList<ClipStore.Clip> selected=new java.util.ArrayList<>();
+        for(ClipStore.Clip c:sounds)if(visibleClip(c))selected.add(c);
+        for(int i=0;i<selected.size();i+=2){
+            LinearLayout row=new LinearLayout(this);
+            LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,dp(113));
+            rp.bottomMargin=dp(8);
+            soundGrid.addView(row,rp);
+            for(int j=i;j<i+2;j++){
+                if(j<selected.size()){
+                    LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(0,-1,1);
+                    if(j%2==1)tp.leftMargin=dp(8);
+                    row.addView(tile(selected.get(j)),tp);
+                }else{
+                    row.addView(new View(this),new LinearLayout.LayoutParams(0,-1,1));
+                }
             }
         }
-        TextView stop=button("STOP SOUND",true);
-        clipsArea.addView(stop,new LinearLayout.LayoutParams(-1,dp(45)));
-        stop.setOnClickListener(v->AudioEngine.stop());
+        if(selected.isEmpty()){
+            TextView none=text("No sounds found. Try another category.",13,DIM,false);
+            none.setPadding(dp(8),dp(15),dp(8),dp(15));
+            soundGrid.addView(none);
+        }
     }
     private void startPanel(){
         if(!Settings.canDrawOverlays(this)){
             openAfterPermission=true;
-            Toast.makeText(this,"Allow GILL Soundboard to display over other apps",Toast.LENGTH_LONG).show();
-            Intent intent=new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                Uri.parse("package:"+getPackageName()));
-            startActivity(intent);
+            Toast.makeText(this,"Allow GILL Soundboard to appear over other apps",Toast.LENGTH_LONG).show();
+            startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:"+getPackageName())));
             return;
         }
-        if(Build.VERSION.SDK_INT>=33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED){
+        if(Build.VERSION.SDK_INT>=33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED){
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},45);
         }
-        Intent intent=new Intent(this,OverlayService.class).setAction(OverlayService.START);
-        if(Build.VERSION.SDK_INT>=26)startForegroundService(intent);else startService(intent);
-        overlayStatus.setText("Floating panel requested. Open Roblox to see it.");
+        Intent service=new Intent(this,OverlayService.class).setAction(OverlayService.START);
+        if(Build.VERSION.SDK_INT>=26)startForegroundService(service);else startService(service);
+        overlayStatus.setText("Floating panel activated. Switch to Roblox.");
     }
     @Override protected void onResume(){
         super.onResume();
@@ -199,31 +353,26 @@ public final class MainActivity extends Activity {
     }
     @Override protected void onActivityResult(int request,int result,Intent data){
         super.onActivityResult(request,result,data);
-        if(request!=PICK_AUDIO || result!=RESULT_OK || data==null)return;
+        if(request!=PICK_AUDIO||result!=RESULT_OK||data==null)return;
         int added=0;
-        ClipData many=data.getClipData();
-        if(many!=null){
-            for(int i=0;i<many.getItemCount();i++){
-                if(importOne(many.getItemAt(i).getUri()))added++;
-            }
-        }else if(data.getData()!=null && importOne(data.getData()))added++;
-        refreshClips();
-        refreshOverlay();
-        Toast.makeText(this,added+" sound(s) imported",Toast.LENGTH_SHORT).show();
+        ClipData multiple=data.getClipData();
+        if(multiple!=null){
+            for(int i=0;i<multiple.getItemCount();i++)
+                if(importClip(multiple.getItemAt(i).getUri()))added++;
+        }else if(data.getData()!=null && importClip(data.getData()))added++;
+        renderSounds();
+        if(OverlayService.isRunning())
+            startService(new Intent(this,OverlayService.class).setAction(OverlayService.REFRESH));
+        Toast.makeText(this,added+" sound(s) added",Toast.LENGTH_SHORT).show();
     }
-    private boolean importOne(Uri uri){
-        try {
-            getContentResolver().takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        }catch(SecurityException ignored){}
+    private boolean importClip(Uri uri){
+        try{getContentResolver().takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION);}
+        catch(SecurityException ignored){}
         String name="Custom sound";
         try(Cursor c=getContentResolver().query(uri,
             new String[]{OpenableColumns.DISPLAY_NAME},null,null,null)){
             if(c!=null && c.moveToFirst())name=c.getString(0);
         }catch(Exception ignored){}
         return ClipStore.add(this,name,uri);
-    }
-    private void refreshOverlay(){
-        if(OverlayService.isRunning())
-            startService(new Intent(this,OverlayService.class).setAction(OverlayService.REFRESH));
     }
 }
