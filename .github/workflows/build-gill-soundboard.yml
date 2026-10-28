@@ -30,15 +30,18 @@ jobs:
           echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0"
-      - name: Generate high quality built-in sounds
-        run: python3 soundboard/tools/generate_sounds.py android
       - name: Create original launcher logo and artwork
         run: |
           python3 -m pip install --quiet pillow
           python3 soundboard/tools/make_brand_assets.py
-      - name: Compile the Android app
+      - name: Compile APK with no synthesized audio
         working-directory: soundboard
         run: gradle --no-daemon :app:assembleDebug
+      - name: Verify no generated meme sounds are bundled
+        run: |
+          if unzip -Z1 soundboard/app/build/outputs/apk/debug/app-debug.apk | grep -E 'res/raw/gill_(sfx|chaos)'; then
+            echo 'Unexpected synthesized audio found'; exit 1
+          fi
       - name: Verify APK target and signature
         run: |
           APK="soundboard/app/build/outputs/apk/debug/app-debug.apk"
