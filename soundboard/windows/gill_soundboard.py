@@ -288,17 +288,40 @@ class App(tk.Tk):
         self.tts_status_label=self.text(speech,"READY TO SPEAK",9,ORANGE)
         self.tts_status_label.pack(anchor="w",padx=12,pady=(0,9))
 
-        filterrow=tk.Frame(self,bg=BG);filterrow.pack(fill="x",padx=22,pady=(9,7))
-        self.text(filterrow,"CATEGORY",9,ORANGE,True).pack(side="left",padx=(0,6))
-        categories=tk.ttk.Combobox(filterrow,state="readonly",width=20,style="Gill.TCombobox",
-                                  values=["ALL"]+CATEGORIES,textvariable=self.cat)
-        categories.pack(side="left")
-        categories.bind("<<ComboboxSelected>>",lambda e:self.render_sounds())
-        self.text(filterrow,"SEARCH",9,ORANGE,True).pack(side="left",padx=(12,6))
-        entry=tk.Entry(filterrow,textvariable=self.search,bg=PANEL,fg=WHITE,
-                       insertbackground=WHITE,relief="flat")
-        entry.pack(side="left",fill="x",expand=True,ipady=6)
-        self.search.trace_add("write",lambda *_:self.render_sounds())
+
+        browser=tk.Frame(self,bg=BG)
+        browser.pack(fill="x",padx=22,pady=(7,7))
+        self.text(browser,"LIVE MEME SEARCH",10,ORANGE,True).pack(side="left",padx=(0,10))
+        searchbox=tk.Entry(browser,textvariable=self.search,bg=CARD,fg=WHITE,
+            insertbackground=WHITE,font=("Segoe UI",11),relief="flat")
+        searchbox.pack(side="left",fill="x",expand=True,ipady=8)
+        searchbox.bind("<Return>",lambda e:self.search_online())
+        self.button(browser,"SEARCH",self.search_online,True).pack(side="left",padx=(7,0))
+        self.button(browser,"MYINSTANTS",self.open_myinstants).pack(side="left",padx=(6,0))
+        self.button(browser,"YOUTUBE",self.open_youtube).pack(side="left",padx=(6,0))
+
+        quick=tk.Frame(self,bg=BG)
+        quick.pack(fill="x",padx=22,pady=(0,5))
+        for row in range(2):
+            line=tk.Frame(quick,bg=BG)
+            line.pack(fill="x",pady=2)
+            for term in QUICK_SEARCHES[row*5:row*5+5]:
+                self.button(line,term.upper(),
+                    lambda x=term:self.search_online(x)).pack(side="left",padx=(0,5))
+
+        bar=tk.Frame(self,bg=BG)
+        bar.pack(fill="x",padx=22,pady=(0,6))
+        self.text(bar,"SHOW",9,ORANGE,True).pack(side="left",padx=(0,8))
+        selector=tk.ttk.Combobox(bar,state="readonly",width=19,
+            values=["SAVED FAVORITES","SEARCH RESULTS"],style="Gill.TCombobox",
+            textvariable=self.cat)
+        selector.pack(side="left")
+        selector.bind("<<ComboboxSelected>>",lambda e:self.render_sounds())
+        self.loopbtn=self.button(bar,"LOOP: OFF",self.toggle_loop)
+        self.loopbtn.pack(side="left",padx=8)
+        self.button(bar,"STOP / CLEAR",self.stop_sounds).pack(side="left")
+        self.sound_status=self.text(bar,"Search real meme clips or open favorites.",9,DIM)
+        self.sound_status.pack(side="left",padx=10)
 
         area=tk.Frame(self,bg=PANEL,highlightbackground="#40334e",highlightthickness=1)
         area.pack(fill="both",expand=True,padx=22,pady=(0,9))
@@ -312,68 +335,169 @@ class App(tk.Tk):
         self.grid.bind("<Configure>",lambda e:self.canvas.configure(scrollregion=self.canvas.bbox("all")))
         self.canvas.bind("<Configure>",lambda e:self.canvas.itemconfigure("inner",width=max(80,e.width-20)))
         self.canvas.bind_all("<MouseWheel>",lambda e:self.canvas.yview_scroll(-int(e.delta/120),"units"))
-        for col in range(4):self.grid.grid_columnconfigure(col,weight=1,uniform="gill")
+        for col in range(3):self.grid.grid_columnconfigure(col,weight=1,uniform="gill")
         self.render_sounds()
 
-        footer=tk.Frame(self,bg=BG);footer.pack(fill="x",padx=22,pady=(0,13))
-        self.text(footer,"FIND REAL MEMES • SAVE FAVORITES • LOOP OR HOLD TO SPAM • ESC = STOP",9,DIM).pack(anchor="w")
-        self.text(footer,"VB-CABLE  /  SOUNDBOARD OUTPUT: CABLE INPUT  •  ROBLOX MIC: CABLE OUTPUT",9,ORANGE).pack(anchor="w",pady=(3,0))
+        footer=tk.Frame(self,bg=BG)
+        footer.pack(fill="x",padx=22,pady=(0,12))
+        self.text(footer,
+            "REAL AUDIO FROM MYINSTANTS • NO GENERATED MEMES • SELECT TO SAVE • ESC = STOP",
+            9,DIM).pack(anchor="w")
+        self.text(footer,
+            "FOR ROBLOX: APP OUTPUT = CABLE INPUT  •  ROBLOX MICROPHONE = CABLE OUTPUT",
+            9,ORANGE).pack(anchor="w",pady=(3,0))
+
+    def search_online(self,term=None):
+        q=(term if term is not None else self.search.get()).strip()
+        if not q:return
+        self.search.set(q)
+        if self.online_busy:
+            self.sound_status.configure(text="FINISHING PREVIOUS SEARCH")
+            return
+        self.cat.set("SEARCH RESULTS")
+        self.online_busy=True
+        self.sound_status.configure(text="SEARCHING / "+q[:40],fg=ORANGE)
+        def task():
+            try:
+                matches=website_search(q)
+                err=""
+            except Exception as ex:
+                matches=[]
+                err="Myinstants unavailable; use website button. "+str(ex)[:80]
+            def ready():
+                self.online_busy=False
+                self.current_results=matches
+                self.render_sounds()
+                self.sound_status.configure(text=err if err else str(len(matches))+" LIVE RESULTS",
+                    fg="#ff928d" if err else "#78e6ab")
+            try:self.after(0,ready)
+            except Exception:pass
+        threading.Thread(target=task,daemon=True).start()
+
+    def open_myinstants(self):
+        from urllib.parse import urlencode
+        webbrowser.open(SITE+"/en/search/?"+urlencode({
+            "name":self.search.get().strip() or "meme"}))
+
+    def open_youtube(self):
+        webbrowser.open(youtube_search_link(self.search.get().strip() or "meme"))
+
+    def toggle_loop(self):
+        self.loop_mode=not self.loop_mode
+        if not self.loop_mode:self.mixer.set_loop(None)
+        self.loopbtn.configure(text="LOOP: ON" if self.loop_mode else "LOOP: OFF",
+            bg=ORANGE if self.loop_mode else CARD,fg=BG if self.loop_mode else WHITE)
 
     def render_sounds(self):
-        self.cancel_spam()
         if not hasattr(self,"grid"):return
         for child in self.grid.winfo_children():child.destroy()
-        ids=[i for i,name in enumerate(NAMES)
-             if (self.cat.get()=="ALL" or CATEGORIES[i//8]==self.cat.get())
-             and self.search.get().lower().strip() in name.lower()]
-        for index,n in enumerate(ids):
-            color=COLORS[n//8]
-            card=tk.Frame(self.grid,bg=CARD,highlightthickness=1,
-                          highlightbackground="#443459",cursor="hand2")
-            card.grid(row=index//4,column=index%4,sticky="nsew",padx=6,pady=6)
-            top=tk.Frame(card,bg=CARD)
-            top.pack(fill="x",padx=11,pady=(10,2))
-            icon=tk.Canvas(top,width=27,height=25,bg=CARD,highlightthickness=0)
+        entries=favorites() if self.cat.get()=="SAVED FAVORITES" else self.current_results
+        if not entries:
+            notice=self.text(self.grid,
+                "NO SAVED MEMES YET • SEARCH ONLINE AND SAVE THE REAL CLIPS YOU LIKE",
+                11,DIM)
+            notice.grid(row=0,column=0,columnspan=3,padx=15,pady=28)
+            return
+        saved={x.url for x in favorites()}
+        for index,item in enumerate(entries):
+            col=index%3
+            card=tk.Frame(self.grid,bg=CARD,highlightbackground="#45375e",
+                highlightthickness=1)
+            card.grid(row=index//3,column=col,sticky="nsew",padx=6,pady=6)
+            heading=tk.Frame(card,bg=CARD)
+            heading.pack(fill="x",padx=9,pady=(8,5))
+            icon=tk.Canvas(heading,width=24,height=20,bg=CARD,highlightthickness=0)
             icon.pack(side="left")
-            # Small custom vector equalizer mark, no emoji or external UI library.
-            for j,bar in enumerate((9,18,13,7)):
-                cx=2+j*6
-                icon.create_rectangle(cx,21-bar,cx+4,21,fill=color,outline="")
-            tk.Label(top,text="%02d"%(n+1),font=("Segoe UI",9),
-                     bg=CARD,fg=DIM).pack(side="right")
-            label=tk.Label(card,text=NAMES[n],bg=CARD,fg=WHITE,
-                           anchor="w",font=("Segoe UI",10,"bold"),cursor="hand2")
-            label.pack(fill="x",padx=11,pady=(2,3))
-            hint=tk.Label(card,text="TAP TO PLAY",bg=CARD,fg=DIM,anchor="w",
-                          font=("Segoe UI",8,"bold"),cursor="hand2")
-            hint.pack(fill="x",padx=11,pady=(0,10))
-            for widget in (card,top,icon,label,hint):
-                widget.bind("<ButtonPress-1>",lambda e,k=n:self.press(k))
+            for j,bar in enumerate((7,17,11,5)):
+                icon.create_rectangle(2+j*5,18-bar,5+j*5,18,fill=ORANGE,outline="")
+            title=tk.Label(heading,text=item.title[:39],font=("Segoe UI",10,"bold"),
+                bg=CARD,fg=WHITE,anchor="w")
+            title.pack(side="left",fill="x",expand=True,padx=5)
+            actions=tk.Frame(card,bg=CARD)
+            actions.pack(fill="x",padx=8,pady=(1,8))
+            self.button(actions,"▶ PLAY",lambda m=item:self.play_meme(m),True).pack(
+                side="left",fill="x",expand=True)
+            self.button(actions,"★" if item.url in saved else "☆",
+                lambda m=item:self.toggle_favorite(m)).pack(side="left",padx=(5,0))
+            self.button(actions,"SITE",lambda m=item:webbrowser.open(m.page)).pack(
+                side="left",padx=(5,0))
+            for widget in (card,heading,title,icon):
+                widget.bind("<ButtonPress-1>",lambda e,m=item:self.press(m))
                 widget.bind("<ButtonRelease-1>",lambda e:self.cancel_spam())
                 widget.bind("<Leave>",lambda e:self.cancel_spam())
-                widget.bind("<Enter>",lambda e,w=card:w.configure(highlightbackground=color))
+                widget.configure(cursor="hand2")
 
-    def press(self,n):
+    def toggle_favorite(self,item):
+        selected=not any(x.url==item.url for x in favorites())
+        set_favorite(item,selected)
+        self.render_sounds()
+        self.sound_status.configure(text="FAVORITE SAVED" if selected else "FAVORITE REMOVED",
+            fg="#77e7ab")
+
+    def play_meme(self,item):
+        if self.mixer.stream is None:
+            messagebox.showinfo("Audio output","Select output and press CONNECT first.")
+            return
+        cached=self.loaded_samples.get(item.url)
+        if cached is not None:
+            if self.loop_mode:
+                sound=self.mixer.make_destroyed_effect(cached) if self.mixer.chaos_mode else cached
+                self.mixer.set_loop(sound)
+            else:
+                self.mixer.play_audio(cached)
+            self.sound_status.configure(text="PLAYING / "+item.title[:40],fg="#74e6ab")
+            return
+        self.sound_status.configure(text="LOADING ACTUAL MEME / "+item.title[:30],fg=ORANGE)
+        def fetch():
+            try:
+                audio=decode_pcm(cached_audio(item.url))
+                failure=""
+            except Exception as ex:
+                audio=None
+                failure=str(ex)
+            def completed():
+                if failure:
+                    self.sound_status.configure(text="SOUND UNAVAILABLE",fg="#ff928d")
+                    messagebox.showerror("Real meme sound",failure)
+                    return
+                if len(self.loaded_samples)>=25:
+                    self.loaded_samples.pop(next(iter(self.loaded_samples)),None)
+                self.loaded_samples[item.url]=audio
+                self.play_meme(item)
+            try:self.after(0,completed)
+            except Exception:pass
+        threading.Thread(target=fetch,daemon=True).start()
+
+    def play_favorite_hotkey(self,index):
+        saved=favorites()
+        if index<len(saved):self.play_meme(saved[index])
+
+    def press(self,item):
         self.cancel_spam()
-        self.mixer.play(n)
-        if self.repeat:
-            self.repeat_id=n
+        self.play_meme(item)
+        if self.repeat and item.url in self.loaded_samples:
+            self.repeat_id=item.url
             self.repeat_task=self.after(int(self.interval.get()),self.repeat_play)
+
     def repeat_play(self):
         if self.repeat_id is None or not self.repeat:return
-        self.mixer.play(self.repeat_id)
+        sample=self.loaded_samples.get(self.repeat_id)
+        if sample is not None and not self.loop_mode:self.mixer.play_audio(sample)
         self.repeat_task=self.after(int(self.interval.get()),self.repeat_play)
+
     def cancel_spam(self):
         self.repeat_id=None
         if self.repeat_task is not None:
             try:self.after_cancel(self.repeat_task)
             except Exception:pass
             self.repeat_task=None
+
     def toggle_spam(self):
         self.repeat=not self.repeat
         self.cancel_spam()
         self.spambtn.configure(text="SPAM: ON" if self.repeat else "SPAM: OFF",
-                               bg=ORANGE if self.repeat else CARD,fg=BG if self.repeat else WHITE)
+            bg=ORANGE if self.repeat else CARD,fg=BG if self.repeat else WHITE)
+
     def refresh_tts_choices(self):
         self.tts_voice_map=dict(DEFAULT_VOICES)
         self.tts_voice_map.update(custom_profiles())
