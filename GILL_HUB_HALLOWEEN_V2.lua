@@ -19,9 +19,9 @@ local S = {
     farm = false, farmNoclip = true, farmHover = true, onlyCandy = false,
     murder = false, sheriff = false, innocent = false,
     prestige = false, antiFling = true, esp = false, lowFX = false,
-    loopEmote = false, autoConfirm = false, friendHop = false, reExecute = false, antiAFK = false, extraHotbar = false
+    loopEmote = false, autoConfirm = false, friendHop = false, reExecute = false, antiAFK = false, extraHotbar = false, hotbarLocked = false
 }
-local speed, bagGoal, animSpeed = 20, 40, 1
+local speed, bagGoal, animSpeed, hotbarSize = 20, 40, 1, 100
 local observed, bagCurrent, bagMaximum = 0, nil, nil
 local manualFull, roundStamp = false, 0
 local lastAction, lastPrestige, lastScan = 0, 0, 0
@@ -41,6 +41,7 @@ if type(remembered)=='table' then
     end
     if type(remembered.loaderURL)=='string' then loaderURL=remembered.loaderURL end
     if type(remembered.speed)=='number' then speed=math.clamp(remembered.speed,1,30) end
+    if type(remembered.hotbarSize)=='number' then hotbarSize=math.clamp(remembered.hotbarSize,70,140) end
     sharedEnv.GillHalloweenResume=nil
 end
 local hopBusy, lastHop, flingBusy, cancelFling = false, -100, false, false
@@ -298,21 +299,27 @@ local function range(page,title,min,max,value,step,callback)
         end))
     end
 end
-local function drag(handle,target)
-    local dragging, origin, start
+local function drag(handle,target,canDrag)
+    local dragging, origin, start, touch
     bind(handle.InputBegan:Connect(function(input)
-        if input.UserInputType==Enum.UserInputType.Touch or input.UserInputType==Enum.UserInputType.MouseButton1 then
+        if canDrag and not canDrag() then return end
+        local ty=input.UserInputType
+        if ty==Enum.UserInputType.Touch or ty==Enum.UserInputType.MouseButton1 then
             dragging=true; origin=input.Position; start=target.Position
+            touch=(ty==Enum.UserInputType.Touch) and input or nil
         end
     end))
     bind(UIS.InputChanged:Connect(function(input)
-        if dragging and (input.UserInputType==Enum.UserInputType.MouseMovement or input.UserInputType==Enum.UserInputType.Touch) then
-            local d=input.Position-origin
-            target.Position=UDim2.new(start.X.Scale,start.X.Offset+d.X,start.Y.Scale,start.Y.Offset+d.Y)
+        if not dragging or (canDrag and not canDrag()) then return end
+        if (touch and input==touch) or (not touch and input.UserInputType==Enum.UserInputType.MouseMovement) then
+            local delta=input.Position-origin
+            target.Position=UDim2.new(start.X.Scale,start.X.Offset+delta.X,start.Y.Scale,start.Y.Offset+delta.Y)
         end
     end))
     bind(UIS.InputEnded:Connect(function(input)
-        if input.UserInputType==Enum.UserInputType.Touch or input.UserInputType==Enum.UserInputType.MouseButton1 then dragging=false end
+        if dragging and ((touch and input==touch) or (not touch and input.UserInputType==Enum.UserInputType.MouseButton1)) then
+            dragging=false;touch=nil
+        end
     end))
 end
 drag(bubble,bubble)
@@ -322,18 +329,25 @@ bind(exit.MouseButton1Click:Connect(function()panel.Visible=false end))
 
 -- Optional compact tool picker for mobile; only equips real tools in your Backpack/character.
 local hotbarPanel=new('Frame',{
-    Name='ExtraHotbar', Size=UDim2.fromOffset(312,62), Position=UDim2.new(.5,-156,1,-134),
+    Name='ExtraHotbar', Size=UDim2.fromOffset(312,82), Position=UDim2.new(.5,-156,1,-154),
     Visible=S.extraHotbar, BackgroundColor3=palette.bg
 },gui)
 corner(hotbarPanel,11)
 new('UIStroke',{Color=palette.orange,Thickness=1.25,Transparency=.23},hotbarPanel)
+local hotbarScale=new('UIScale',{Scale=hotbarSize/100},hotbarPanel)
+local hotbarGrip=new('TextButton',{
+    Size=UDim2.new(1,-16,0,22),Position=UDim2.fromOffset(8,4),
+    BackgroundColor3=palette.card,Text=S.hotbarLocked and 'HOTBAR | LOCKED' or 'HOTBAR | HOLD TO DRAG',
+    TextColor3=palette.dim,TextSize=10,Font=Enum.Font.GothamBold,AutoButtonColor=false
+},hotbarPanel)
+corner(hotbarGrip,6)
+drag(hotbarGrip,hotbarPanel,function()return not S.hotbarLocked end)
 local hotbarList=new('ScrollingFrame',{
-    Position=UDim2.fromOffset(8,7),Size=UDim2.new(1,-16,1,-14),BackgroundTransparency=1,
+    Position=UDim2.fromOffset(8,30),Size=UDim2.new(1,-16,1,-38),BackgroundTransparency=1,
     ScrollingDirection=Enum.ScrollingDirection.X,ScrollBarThickness=2,ScrollBarImageColor3=palette.orange,
     AutomaticCanvasSize=Enum.AutomaticSize.X,CanvasSize=UDim2.fromOffset(0,0)
 },hotbarPanel)
 new('UIListLayout',{FillDirection=Enum.FillDirection.Horizontal,Padding=UDim.new(0,5)},hotbarList)
-drag(hotbarPanel,hotbarPanel)
 local hotbarSignature=''
 local function refreshHotbar(force)
     if not alive or not S.extraHotbar then return end
@@ -350,10 +364,20 @@ local function refreshHotbar(force)
     table.sort(tools,function(a,b)return a.Name<b.Name end)
     local signature={}
     for _,tool in ipairs(tools) do
-        signature[#signature+1]=tool.Name..':'..tostring(tool.Parent==char)
+        signature[#signature+1]=tostring(tool)
     end
     local key=table.concat(signature,'|')
-    if not force and key==hotbarSignature then return end
+    if not force and key==hotbarSignature then
+        for _,item in ipairs(hotbarList:GetChildren()) do
+            if item:IsA('TextButton') then
+                local tool=item:FindFirstChild('BoundTool')
+                if tool and tool:IsA('ObjectValue') and tool.Value then
+                    item.BackgroundColor3=tool.Value.Parent==char and palette.orange or palette.raised
+                end
+            end
+        end
+        return
+    end
     hotbarSignature=key
     for _,item in ipairs(hotbarList:GetChildren()) do
         if not item:IsA('UIListLayout') then item:Destroy() end
@@ -372,12 +396,13 @@ local function refreshHotbar(force)
             TextSize=11,Font=Enum.Font.GothamBold
         },hotbarList)
         corner(btn,8)
+        new('ObjectValue',{Name='BoundTool',Value=tool},btn)
         btn.MouseButton1Click:Connect(function()
             local current,bHum=characterOf(Me)
             local pack=Me:FindFirstChildOfClass('Backpack')
             if not bHum or (tool.Parent~=current and tool.Parent~=pack) then return end
             if tool.Parent==current then bHum:UnequipTools() else equip(tool) end
-            task.delay(.1,function()if alive then refreshHotbar(true) end end)
+            task.delay(.1,function()if alive then refreshHotbar(false) end end)
         end)
     end
 end
@@ -554,7 +579,7 @@ local function queueResume()
         say('Auto re-execute not available in this Delta session',8)
         return false
     end
-    local snapshot=HttpService:JSONEncode({settings=S,loaderURL=loaderURL,speed=speed})
+    local snapshot=HttpService:JSONEncode({settings=S,loaderURL=loaderURL,speed=speed,hotbarSize=hotbarSize})
     local code=string.format([[
         repeat task.wait(.4) until game:IsLoaded()
         getgenv().GillHalloweenResume=game:GetService('HttpService'):JSONDecode(%q)
@@ -925,8 +950,19 @@ bind(hotbarSwitch.MouseButton1Click:Connect(function()
         if S.extraHotbar then refreshHotbar(true) else hotbarSignature='' end
     end)
 end))
+local lockSwitch=toggle(toolsTab,'Lock hotbar position','hotbarLocked')
+bind(lockSwitch.MouseButton1Click:Connect(function()
+    task.defer(function()
+        if alive then
+            hotbarGrip.Text=S.hotbarLocked and 'HOTBAR | LOCKED' or 'HOTBAR | HOLD TO DRAG'
+        end
+    end)
+end))
+range(toolsTab,'Hotbar size (%)',70,140,hotbarSize,10,function(n)
+    hotbarSize=n;hotbarScale.Scale=n/100
+end)
 action(toolsTab,'Refresh available tools',function()refreshHotbar(true)end)
-label(toolsTab,'USE','Drag the separate hotbar to reposition it. Tap a tool to equip or unequip.')
+label(toolsTab,'USE','Drag from its header, resize here, then lock it in place.')
 
 label(guardTab,'LOCAL PROTECTION','Anti-fling reduces extreme velocity, but cannot bypass all fling methods.')
 toggle(guardTab,'Velocity anti-fling','antiFling')
