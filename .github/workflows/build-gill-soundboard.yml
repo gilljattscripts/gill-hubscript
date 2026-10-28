@@ -32,6 +32,10 @@ jobs:
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0"
       - name: Generate high quality built-in sounds
         run: python3 soundboard/tools/generate_sounds.py android
+      - name: Create original launcher logo and artwork
+        run: |
+          python3 -m pip install --quiet pillow
+          python3 soundboard/tools/make_brand_assets.py
       - name: Compile the Android app
         working-directory: soundboard
         run: gradle --no-daemon :app:assembleDebug
