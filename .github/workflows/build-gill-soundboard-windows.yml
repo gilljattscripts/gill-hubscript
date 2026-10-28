@@ -24,15 +24,15 @@ jobs:
       - name: Generate original 48 kHz stereo sound library
         run: python soundboard/tools/generate_sounds.py windows
       - name: Install dependencies
-        run: python -m pip install --upgrade pip numpy sounddevice pyinstaller pillow
+        run: python -m pip install --upgrade pip numpy sounddevice pyinstaller pillow edge-tts miniaudio
       - name: Generate GILL app icon
         run: python soundboard/tools/make_brand_assets.py
       - name: Check Python syntax and live voice processing
         run: |
-          python -m py_compile soundboard/windows/gill_soundboard.py soundboard/windows/voice_fx.py
+          python -m py_compile soundboard/windows/gill_soundboard.py soundboard/windows/voice_fx.py soundboard/windows/tts_engine.py
           python soundboard/windows/test_voice_fx.py
       - name: Build standalone Windows EXE
-        run: pyinstaller --noconfirm --clean --onefile --windowed --name GILL-Soundboard --icon soundboard/windows/gill_icon.ico --add-data "soundboard/windows/gill_icon.ico;." --add-data "soundboard/windows/assets;assets" --collect-all _sounddevice_data soundboard/windows/gill_soundboard.py
+        run: pyinstaller --noconfirm --clean --onefile --windowed --name GILL-Soundboard --icon soundboard/windows/gill_icon.ico --add-data "soundboard/windows/gill_icon.ico;." --add-data "soundboard/windows/assets;assets" --collect-all _sounddevice_data --collect-all edge_tts --collect-all miniaudio soundboard/windows/gill_soundboard.py
       - name: Upload Windows app
         uses: actions/upload-artifact@v4
         with:
