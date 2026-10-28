@@ -20,7 +20,7 @@ import java.util.Random;
 
 final class AudioEngine {
     private static final int RATE=22050;
-    private static final int MAX_STREAMS=24;
+    private static final int MAX_STREAMS=20;
     private static SoundPool pool;
     private static final Map<Integer,Integer> presetIds=new HashMap<>();
     private static final HashSet<Integer> loadedIds=new HashSet<>();
@@ -140,7 +140,7 @@ final class AudioEngine {
         double phase=0;
         for(int i=0;i<samples;i++){
             double t=i/(double)RATE,progress=i/(double)samples;
-            double fadeIn=Math.min(1,t/.008);
+            double fadeIn=Math.min(1,t/.0025);
             double envelope=fadeIn*Math.pow(Math.max(0,1-progress),.45);
             double pitch=440,wave;
             switch(preset){
@@ -167,7 +167,32 @@ final class AudioEngine {
                 case 20: pitch=880+180*Math.sin(t*16);wave=Math.sin(phase)*(Math.sin(t*24)>0?1:.1);break;
                 case 21: pitch=300+360*Math.floor(progress*4)/4;wave=Math.sin(phase)+.3*Math.sin(2*phase);break;
                 case 22: pitch=640;wave=Math.sin(phase)*(Math.sin(t*46)>0?1:0);break;
-                default: pitch=480+300*Math.cos(t*22);wave=Math.sin(phase)+.18*Math.sin(phase*3);break;
+                case 23: pitch=480+300*Math.cos(t*22);wave=Math.sin(phase)+.18*Math.sin(phase*3);break;
+                case 24: pitch=260*(1-progress)+70;wave=Math.sin(phase)*Math.cos(progress*25);break;
+                case 25: pitch=220+110*Math.floor(progress*8);wave=Math.sin(phase)+.3*Math.sin(phase*4);break;
+                case 26: pitch=65+50*Math.sin(progress*16);wave=Math.sin(phase)+.33*Math.sin(phase*.32);break;
+                case 27: pitch=1100-700*progress;wave=Math.sin(phase+.7*Math.sin(phase*.22));break;
+                case 28: pitch=250;wave=noise.nextDouble()*2-1;break;
+                case 29: pitch=660;wave=Math.sin(phase)+.35*Math.sin(phase*2.01);break;
+                case 30: pitch=900+500*Math.exp(-progress*9);wave=Math.sin(phase);envelope*=Math.exp(-progress*7);break;
+                case 31: pitch=240+130*Math.sin(t*18);wave=Math.sin(phase)+.65*Math.sin(phase*2)+.3*Math.sin(phase*3);break;
+                case 32: pitch=300+200*Math.sin(progress*14);wave=Math.sin(phase)*Math.exp(-progress*2);break;
+                case 33: pitch=1200*Math.pow(.13,progress);wave=Math.sin(phase)+.2*Math.sin(phase*.2);break;
+                case 34: pitch=500+90*Math.sin(progress*35);wave=Math.sin(phase)*Math.sin(progress*22);break;
+                case 35: pitch=850;wave=Math.sin(phase)*(Math.sin(progress*43)>0?1:0);break;
+                case 36: pitch=300+600*Math.abs(Math.sin(progress*34));wave=(noise.nextDouble()*2-1)*.3+Math.sin(phase)*.7;break;
+                case 37: pitch=90+80*Math.sin(progress*12);wave=Math.sin(phase)+.5*(noise.nextDouble()*2-1)*Math.exp(-progress*10);break;
+                case 38: pitch=700+200*Math.sin(progress*60);wave=Math.sin(phase);break;
+                case 39: pitch=2200-1300*progress;wave=Math.sin(phase)+.22*Math.sin(phase*2);envelope*=Math.exp(-progress*7);break;
+                case 40: pitch=500-360*progress;wave=Math.sin(phase)*Math.cos(progress*14);break;
+                case 41: pitch=480+260*Math.floor(progress*4);wave=Math.sin(phase)+.26*Math.sin(phase*2);break;
+                case 42: pitch=730+130*Math.sin(progress*70);wave=Math.sin(phase)*(Math.sin(progress*43)>0?1:.2);break;
+                case 43: pitch=250+1200*progress;wave=Math.sin(phase)+.15*Math.sin(phase*3);break;
+                case 44: pitch=500+250*Math.sin(progress*18);wave=Math.sin(phase)*Math.exp(-progress*5);break;
+                case 45: pitch=900-500*progress;wave=Math.sin(phase)+.45*(noise.nextDouble()*2-1);break;
+                case 46: pitch=200+180*Math.sin(progress*27);wave=Math.sin(phase)*((i/125)%2==0?1:0);break;
+                case 47: pitch=2400*Math.pow(.2,progress);wave=Math.sin(phase)+.4*Math.sin(phase*1.35);break;
+                default: pitch=440;wave=Math.sin(phase);break;
             }
             phase+=2*Math.PI*pitch/RATE;
             int amplitude=(int)(32767*Math.max(-1,Math.min(1,wave*.4*envelope)));
@@ -179,7 +204,7 @@ final class AudioEngine {
     private static double duration(int index){
         switch(index){
             case 0:case 1:case 6:case 8:case 10:case 14:case 20:return .95;
-            case 4:case 9:case 12:case 16:case 22:return .35;
+            case 4:case 9:case 12:case 16:case 22:case 30:case 39:case 46:return .35;
             default:return .6;
         }
     }

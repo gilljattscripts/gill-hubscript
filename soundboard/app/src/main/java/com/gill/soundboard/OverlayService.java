@@ -199,12 +199,19 @@ public final class OverlayService extends Service {
 
         ScrollView scroller=new ScrollView(this);
         scroller.setFillViewport(false);
-        box.addView(scroller,new LinearLayout.LayoutParams(-1,dp(235)));
+        box.addView(scroller,new LinearLayout.LayoutParams(-1,dp(270)));
         LinearLayout clips=new LinearLayout(this);
         clips.setOrientation(LinearLayout.VERTICAL);
         scroller.addView(clips);
         List<ClipStore.Clip> library=ClipStore.get(this);
+        final String[] categories={"LOUD / BASS","FUNNY / CARTOON","DRAMA / MEMES","ARCADE / RETRO","EFFECTS / SPACE","ALERTS / EXTRA"};
         for(int i=0;i<library.size();i+=2){
+            if(i<ClipStore.PRESETS.length && i%8==0){
+                TextView section=text(categories[i/8],11,ORANGE);
+                section.setGravity(Gravity.CENTER_VERTICAL|Gravity.LEFT);
+                LinearLayout.LayoutParams sectionParams=new LinearLayout.LayoutParams(-1,dp(29));
+                clips.addView(section,sectionParams);
+            }
             LinearLayout row=new LinearLayout(this);
             LinearLayout.LayoutParams rowP=new LinearLayout.LayoutParams(-1,dp(43));
             rowP.bottomMargin=dp(5);

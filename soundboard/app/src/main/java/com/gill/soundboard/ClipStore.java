@@ -10,12 +10,12 @@ import java.util.List;
 
 final class ClipStore {
     static final String[] PRESETS = {
-        "BASS BOOM", "AIR HORN", "BONK", "BOING",
-        "LASER", "ERROR", "SCRATCH", "GLITCH",
-        "DRAMATIC", "POP", "SIREN", "LEVEL UP",
-        "FAIL", "PHONE RING", "SUSPENSE", "CARTOON ZIP",
-        "CHIRP", "METAL HIT", "REWIND", "WHOOSH",
-        "ALARM", "ARCADE", "BEEP SPAM", "SPACE BLIP"
+        "BASS BOOM", "AIR HORN", "BONK", "BOING", "LASER", "ERROR", "SCRATCH", "GLITCH",
+        "DRAMATIC", "POP", "SIREN", "LEVEL UP", "FAIL", "PHONE RING", "SUSPENSE", "CARTOON ZIP",
+        "CHIRP", "METAL HIT", "REWIND", "WHOOSH", "ALARM", "ARCADE", "BEEP SPAM", "SPACE BLIP",
+        "RECORD STOP", "8-BIT HIT", "DARK PULSE", "CARTOON SLIDE", "RADIO STATIC", "BELL", "PING", "TRUMPET",
+        "BUBBLE", "BASS DROP", "UFO", "CLOCK TICK", "VHS GLITCH", "SMASH", "DIZZY", "SPARK",
+        "GAME OVER", "SUCCESS", "WARNING", "POWER UP", "SQUEAK", "SCREAM SYNTH", "KNOCK", "SCI-FI SHOT"
     };
     static final class Clip {
         final int preset;
