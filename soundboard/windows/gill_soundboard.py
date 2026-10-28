@@ -19,8 +19,9 @@ NAMES = [
 ]
 CATEGORIES=["LOUD / BASS","FUNNY / CARTOON","DRAMA / MEMES",
             "ARCADE / RETRO","EFFECTS / SPACE","ALERTS / EXTRA"]
-BG="#13151a"; PANEL="#20232c"; CARD="#2d313b"
-ORANGE="#ff873e"; WHITE="#f3f1ec"; DIM="#b2b7c4"
+BG="#0d0c17"; PANEL="#191626"; CARD="#292239"
+ORANGE="#a663ff"; WHITE="#f5f0ff"; DIM="#b6accb"
+COLORS=["#cf8cff","#ffc389","#bd9dff","#80d8ff","#a0f1d5","#ffd395"]
 
 def asset_root():
     if getattr(sys,"frozen",False):
@@ -117,6 +118,10 @@ class App(tk.Tk):
         self.geometry("850x700")
         self.minsize(610,530)
         self.configure(bg=BG)
+        try:
+            icon=Path(sys._MEIPASS)/"gill_icon.ico" if getattr(sys,"frozen",False) else Path(__file__).resolve().parent/"gill_icon.ico"
+            if icon.exists():self.iconbitmap(str(icon))
+        except Exception:pass
         self.mixer=Mixer()
         self.repeat=False
         self.repeat_id=None
@@ -127,6 +132,15 @@ class App(tk.Tk):
         self.out_list=[]
         self.in_list=[]
         self.topmost=True
+        try:
+            style=ttk.Style(self)
+            style.theme_use("clam")
+            style.configure("Gill.TCombobox",fieldbackground=CARD,background=PANEL,
+                            foreground=WHITE,arrowcolor=ORANGE,padding=6,
+                            borderwidth=0,relief="flat")
+            style.map("Gill.TCombobox",fieldbackground=[("readonly",CARD)],
+                      foreground=[("readonly",WHITE)])
+        except Exception:pass
         self.make_ui()
         self.refresh_devices()
         self.after(350,self.start_audio)
@@ -140,24 +154,28 @@ class App(tk.Tk):
                         font=("Segoe UI",size,"bold" if bold else "normal"))
     def button(self,parent,s,command=None,highlight=False):
         return tk.Button(parent,text=s,command=command,bg=ORANGE if highlight else CARD,
-            fg=BG if highlight else WHITE,activebackground="#efa97f",
+            fg=BG if highlight else WHITE,activebackground="#d3a5ff",
             activeforeground=BG,relief="flat",borderwidth=0,
             font=("Segoe UI",10,"bold"),padx=10,pady=7,cursor="hand2")
 
     def make_ui(self):
-        top=tk.Frame(self,bg=BG);top.pack(fill="x",padx=22,pady=(16,12))
-        self.text(top,"G I L L  /  S O U N D B O A R D",20,WHITE,True).pack(anchor="w")
-        self.text(top,"48 BUILT-IN STEREO SOUNDS  •  NO ADS  •  INSTANT PLAYBACK",10,ORANGE,True).pack(anchor="w")
-        self.text(top,"Connect VB-CABLE to send effects + your microphone to Roblox voice chat.",10,DIM).pack(anchor="w",pady=(6,0))
+        top=tk.Frame(self,bg=BG);top.pack(fill="x",padx=22,pady=(18,14))
+        self.brand_image=tk.PhotoImage(file=str(asset_root()/"gill_logo_small.png"))
+        tk.Label(top,image=self.brand_image,bg=BG).pack(side="left",padx=(0,12))
+        heading=tk.Frame(top,bg=BG)
+        heading.pack(side="left",fill="x",expand=True)
+        self.text(heading,"GILL SOUNDBOARD",23,WHITE,True).pack(anchor="w")
+        self.text(heading,"48 BUILT-IN SOUNDS  /  NO ADS  /  INSTANT PLAYBACK",10,ORANGE,True).pack(anchor="w")
+        self.text(heading,"Real-time microphone mixing and virtual-cable output",10,DIM).pack(anchor="w",pady=(5,0))
 
         settings=tk.Frame(self,bg=PANEL);settings.pack(fill="x",padx=22,pady=6,ipady=8)
         settings.grid_columnconfigure(1,weight=1)
         settings.grid_columnconfigure(3,weight=1)
         self.text(settings,"OUTPUT",9,ORANGE,True).grid(row=0,column=0,padx=9,pady=(11,3))
         self.text(settings,"MIC INPUT",9,ORANGE,True).grid(row=0,column=2,padx=9,pady=(11,3))
-        self.out=tk.ttk.Combobox(settings,state="readonly",width=25)
+        self.out=tk.ttk.Combobox(settings,state="readonly",width=25,style="Gill.TCombobox")
         self.out.grid(row=0,column=1,padx=6,pady=(11,3),sticky="ew")
-        self.mic=tk.ttk.Combobox(settings,state="readonly",width=25)
+        self.mic=tk.ttk.Combobox(settings,state="readonly",width=25,style="Gill.TCombobox")
         self.mic.grid(row=0,column=3,padx=6,pady=(11,3),sticky="ew")
         buttonrow=tk.Frame(settings,bg=PANEL)
         buttonrow.grid(row=1,column=0,columnspan=4,sticky="w",padx=9,pady=(6,2))
@@ -171,7 +189,7 @@ class App(tk.Tk):
         self.spambtn=self.button(controls,"SPAM: OFF",self.toggle_spam)
         self.spambtn.pack(side="left",padx=7,pady=9)
         self.text(controls,"HOLD RATE",9,DIM).pack(side="left",padx=5)
-        speed=tk.ttk.Combobox(controls,state="readonly",width=5,
+        speed=tk.ttk.Combobox(controls,state="readonly",width=5,style="Gill.TCombobox",
                              values=["75","100","130","200","300"],textvariable=self.interval)
         speed.pack(side="left")
         self.topbtn=self.button(controls,"TOPMOST: ON",self.toggle_topmost)
@@ -185,7 +203,7 @@ class App(tk.Tk):
 
         filterrow=tk.Frame(self,bg=BG);filterrow.pack(fill="x",padx=22,pady=(9,7))
         self.text(filterrow,"CATEGORY",9,ORANGE,True).pack(side="left",padx=(0,6))
-        categories=tk.ttk.Combobox(filterrow,state="readonly",width=20,
+        categories=tk.ttk.Combobox(filterrow,state="readonly",width=20,style="Gill.TCombobox",
                                   values=["ALL"]+CATEGORIES,textvariable=self.cat)
         categories.pack(side="left")
         categories.bind("<<ComboboxSelected>>",lambda e:self.render_sounds())
@@ -195,7 +213,8 @@ class App(tk.Tk):
         entry.pack(side="left",fill="x",expand=True,ipady=6)
         self.search.trace_add("write",lambda *_:self.render_sounds())
 
-        area=tk.Frame(self,bg=PANEL);area.pack(fill="both",expand=True,padx=22,pady=(0,9))
+        area=tk.Frame(self,bg=PANEL,highlightbackground="#40334e",highlightthickness=1)
+        area.pack(fill="both",expand=True,padx=22,pady=(0,9))
         self.canvas=tk.Canvas(area,bg=PANEL,highlightthickness=0)
         scroll=tk.Scrollbar(area,orient="vertical",command=self.canvas.yview)
         self.canvas.configure(yscrollcommand=scroll.set)
@@ -211,7 +230,7 @@ class App(tk.Tk):
 
         footer=tk.Frame(self,bg=BG);footer.pack(fill="x",padx=22,pady=(0,13))
         self.text(footer,"HOLD ANY SOUND TO REPEAT WHEN SPAM IS ON  •  ESC = STOP",9,DIM).pack(anchor="w")
-        self.text(footer,"VB-CABLE: soundboard OUTPUT = CABLE Input; Roblox MIC = CABLE Output.",9,ORANGE).pack(anchor="w",pady=(3,0))
+        self.text(footer,"VB-CABLE  /  SOUNDBOARD OUTPUT: CABLE INPUT  •  ROBLOX MIC: CABLE OUTPUT",9,ORANGE).pack(anchor="w",pady=(3,0))
 
     def render_sounds(self):
         self.cancel_spam()
@@ -221,12 +240,31 @@ class App(tk.Tk):
              if (self.cat.get()=="ALL" or CATEGORIES[i//8]==self.cat.get())
              and self.search.get().lower().strip() in name.lower()]
         for index,n in enumerate(ids):
-            b=tk.Label(self.grid,text=NAMES[n],bg=CARD,fg=WHITE,
-                       font=("Segoe UI",9,"bold"),height=3,cursor="hand2")
-            b.grid(row=index//4,column=index%4,sticky="nsew",padx=5,pady=5)
-            b.bind("<ButtonPress-1>",lambda e,k=n:self.press(k))
-            b.bind("<ButtonRelease-1>",lambda e:self.cancel_spam())
-            b.bind("<Leave>",lambda e:self.cancel_spam())
+            color=COLORS[n//8]
+            card=tk.Frame(self.grid,bg=CARD,highlightthickness=1,
+                          highlightbackground="#443459",cursor="hand2")
+            card.grid(row=index//4,column=index%4,sticky="nsew",padx=6,pady=6)
+            top=tk.Frame(card,bg=CARD)
+            top.pack(fill="x",padx=11,pady=(10,2))
+            icon=tk.Canvas(top,width=27,height=25,bg=CARD,highlightthickness=0)
+            icon.pack(side="left")
+            # Small custom vector equalizer mark, no emoji or external UI library.
+            for j,bar in enumerate((9,18,13,7)):
+                cx=2+j*6
+                icon.create_rectangle(cx,21-bar,cx+4,21,fill=color,outline="")
+            tk.Label(top,text="%02d"%(n+1),font=("Segoe UI",9),
+                     bg=CARD,fg=DIM).pack(side="right")
+            label=tk.Label(card,text=NAMES[n],bg=CARD,fg=WHITE,
+                           anchor="w",font=("Segoe UI",10,"bold"),cursor="hand2")
+            label.pack(fill="x",padx=11,pady=(2,3))
+            hint=tk.Label(card,text="TAP TO PLAY",bg=CARD,fg=DIM,anchor="w",
+                          font=("Segoe UI",8,"bold"),cursor="hand2")
+            hint.pack(fill="x",padx=11,pady=(0,10))
+            for widget in (card,top,icon,label,hint):
+                widget.bind("<ButtonPress-1>",lambda e,k=n:self.press(k))
+                widget.bind("<ButtonRelease-1>",lambda e:self.cancel_spam())
+                widget.bind("<Leave>",lambda e:self.cancel_spam())
+                widget.bind("<Enter>",lambda e,w=card:w.configure(highlightbackground=color))
 
     def press(self,n):
         self.cancel_spam()
