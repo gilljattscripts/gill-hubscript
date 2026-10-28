@@ -11,6 +11,7 @@ from threading import Lock
 import json
 import os
 import re
+import sys
 
 from meme_browser import app_folder, Meme
 
@@ -100,3 +101,27 @@ def import_pack(filename):
         temp.write_text(json.dumps(full,ensure_ascii=False,indent=2),encoding="utf-8")
         temp.replace(_registry_path())
         return len(fresh),len(full)
+
+
+def auto_import_embedded():
+    """Load original audio carried inside the finished EXE once.
+    
+    Source builds ship a harmless placeholder, replaced locally when packaging
+    the user's full 92-clip audio pack, so public GitHub never stores recordings.
+    """
+    folder=(Path(sys._MEIPASS)/"assets") if getattr(sys,"frozen",False) else (
+        Path(__file__).resolve().parent/"assets")
+    bundled=folder/"gill_soundpack.txt"
+    if not bundled.exists():return 0
+    from zipfile import is_zipfile
+    if not is_zipfile(bundled):return 0
+    version="gill-pack-92-gangnam-v1"
+    stamp=app_folder()/"built_in_pack_version.txt"
+    try:
+        if stamp.read_text(encoding="utf-8").strip()==version and len(imported_sounds())>=92:
+            return 0
+    except Exception:pass
+    added,total=import_pack(bundled)
+    if total>=92:
+        stamp.write_text(version,encoding="utf-8")
+    return added
