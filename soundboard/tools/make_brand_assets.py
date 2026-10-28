@@ -50,6 +50,7 @@ def build():
     res=ROOT/"app/src/main/res"
     win=ROOT/"windows"
     (win/"assets").mkdir(parents=True,exist_ok=True)
+    (res/"drawable-nodpi").mkdir(parents=True,exist_ok=True)
     mark=logo(1024)
     mark.resize((512,512),Image.Resampling.LANCZOS).save(res/"drawable-nodpi/gill_logo.png")
     mark.resize((64,64),Image.Resampling.LANCZOS).save(win/"assets/gill_logo_small.png")
@@ -66,15 +67,15 @@ def build():
         mark.resize((pixels,pixels),Image.Resampling.LANCZOS).save(folder/"ic_launcher.png")
     (res/"mipmap-anydpi-v26").mkdir(parents=True,exist_ok=True)
     (res/"mipmap-anydpi-v26/ic_launcher.xml").write_text(
-        '<?xml version="1.0" encoding="utf-8"?>\\n'
-        '<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\\n'
-        '    <background android:drawable="@color/launcher_bg"/>\\n'
-        '    <foreground android:drawable="@drawable/gill_foreground"/>\\n'
-        '</adaptive-icon>\\n',encoding="utf-8")
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        '<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\n'
+        '    <background android:drawable="@color/launcher_bg"/>\n'
+        '    <foreground android:drawable="@drawable/gill_foreground"/>\n'
+        '</adaptive-icon>\n',encoding="utf-8")
     (res/"values").mkdir(parents=True,exist_ok=True)
     (res/"values/colors.xml").write_text(
-        '<?xml version="1.0" encoding="utf-8"?>\\n'
-        '<resources><color name="launcher_bg">#100D1E</color></resources>\\n',
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        '<resources><color name="launcher_bg">#100D1E</color></resources>\n',
         encoding="utf-8")
     print("Generated original icon, adaptive launcher, Windows .ico and brand art.")
 
