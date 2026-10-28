@@ -38,7 +38,7 @@ import java.util.regex.Pattern;
 public final class MemeSearchActivity extends Activity {
     private static final String SITE="https://www.myinstants.com";
     private static final String[] QUICK={
-        "I hate this game","man screaming","rage scream",
+        "Gangnam Style","I hate this game","man screaming","rage scream",
         "gen z meme","brainrot","hindi meme","arey bhai",
         "moye moye","vine boom","bruh","fart","goofy laugh"
     };
