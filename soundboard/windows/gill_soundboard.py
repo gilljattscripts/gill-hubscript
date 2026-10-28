@@ -1,8 +1,9 @@
-"""GILL Soundboard for Windows. Offline, original high-fidelity effects, VB-CABLE routing."""
+"""GILL Soundboard for Windows: real meme search, VB-CABLE and voice FX. No fake SFX."""
 import os
 import sys
 import threading
 import wave
+import webbrowser
 from pathlib import Path
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
@@ -10,55 +11,25 @@ from tts_engine import DEFAULT_VOICES, custom_profiles, save_custom_profile, rem
 import numpy as np
 import sounddevice as sd
 from voice_fx import VoiceProcessor, VOICE_MODES
+from meme_browser import Meme, website_search, favorites, set_favorite, cached_audio, decode_pcm, SITE, youtube_search_link
 
-NAMES = [
-    "BASS BOOM","AIR HORN","BONK","BOING","LASER","ERROR","SCRATCH","GLITCH",
-    "DRAMATIC","POP","SIREN","LEVEL UP","FAIL","PHONE RING","SUSPENSE","CARTOON ZIP",
-    "CHIRP","METAL HIT","REWIND","WHOOSH","ALARM","ARCADE","BEEP SPAM","SPACE BLIP",
-    "RECORD STOP","8-BIT HIT","DARK PULSE","CARTOON SLIDE","RADIO STATIC","BELL","PING","TRUMPET",
-    "BUBBLE","BASS DROP","UFO","CLOCK TICK","VHS GLITCH","SMASH","DIZZY","SPARK",
-    "GAME OVER","SUCCESS","WARNING","POWER UP","SQUEAK","SCREAM SYNTH","KNOCK","SCI-FI SHOT",
-    "BRUH BASS","SHEESH WHISTLE","CLOWN HONK","RUBBER DUCK","AWKWARD BUZZ","VINE BOOM","SNORT","SPROING",
-    "ROUND LOST","ROUND WON","ITEM FOUND","BOSS ARRIVES","NOPE BUZZER","CHECKPOINT","HIT CONFIRM","TIME OUT",
-    "JUMPSCARE","CREEPY CHOIR","GHOST SWOOSH","HEARTBEAT","DOOR CREAK","DARK DRONE","WHISPER SYNTH","EVIL GIGGLE",
-    "DATA CRASH","DIGITAL BURST","MODEM BLIP","CYBER SIREN","STATIC SWEEP","PIXEL BREAK","ROBOT BLIP","SIGNAL LOST",
-    "VICTORY FANFARE","TENSION STING","8BIT BOUNCE","MYSTERY CHORD","SAD TROMBONE","RAPID DRUM","BATTLE INTRO","LAST SECOND",
-    "CHAOS HORN","MIC DESTROYED","MEGA BOOM","HYPER BEEP","WOBBLE BASS","BRAIN FREEZE","ALIEN SQUEAL","OVERLOAD",
-    "SOFT BREATH","NERVOUS GASP","FAKE CHUCKLE","THROAT CLEAR","SHARP SIGH","HMM VOICE","HUH VOICE","FAKE COUGH",
-    "KEYBOARD TAP","RAPID TYPING","MECHANICAL KEYS","SPACEBAR","MOUSE CLICK","DOUBLE CLICK","DESK THUMP","HEADSET RUSTLE",
-    "UH OH VOICE","SHORT LAUGH","CONFUSED HUM","YAWN FX","ROBOT GASP","VOICE CRACK","CARTOON SNEEZE","FAKE WHISPER",
-    "DISTORTED LAUGH","GLITCH VOICE","KEYBOARD RAGE","LOUD EXHALE","STREAM ALERT","TAP STORM","PUNCHLINE","LAST STRAW"
-]
-CATEGORIES=["LOUD / BASS","FUNNY / CARTOON","DRAMA / MEMES",
-            "ARCADE / RETRO","EFFECTS / SPACE","ALERTS / EXTRA",
-            "MEME REACTIONS","GAMING / FAILS","HORROR / HAUNTED",
-            "GLITCH / TECH","MUSIC / STINGS","CHAOS / TROLL",
-            "VOICE REACTIONS","KEYBOARD / DESK","VOICE / FUNNY","CHAOS / EXTRA"]
+QUICK_SEARCHES=["I hate this game","man screaming","rage scream","gen z meme",
+                "hindi meme","arey bhai","moye moye","bruh","goofy laugh","vine boom"]
 BG="#0d0c17"; PANEL="#191626"; CARD="#292239"
 ORANGE="#a663ff"; WHITE="#f5f0ff"; DIM="#b6accb"
-COLORS=["#cf8cff","#ffc389","#bd9dff","#80d8ff","#a0f1d5","#ffd395",
-        "#f39aba","#85cfff","#b68ff6","#7ce2d9","#eab078","#f58bb6",
-        "#b7f3aa","#8fdbed","#f3b4e1","#ffd395"]
+
 
 def asset_root():
     if getattr(sys,"frozen",False):
         return Path(sys._MEIPASS)/"assets"
     return Path(__file__).resolve().parent/"assets"
 
-def load_sound(index):
-    path=asset_root()/("gill_sfx_%02d.wav" % index)
-    with wave.open(str(path),"rb") as wav:
-        if (wav.getnchannels(),wav.getframerate(),wav.getsampwidth()) != (2,48000,2):
-            raise ValueError("Unexpected audio format: "+str(path))
-        data=wav.readframes(wav.getnframes())
-    return np.frombuffer(data,dtype="<i2").reshape(-1,2).astype("float32")/32768.0
-
 class Mixer:
     def __init__(self):
         self.lock=threading.Lock()
-        self.samples=[load_sound(i) for i in range(len(NAMES))]
-        self.chaos_samples=[self.make_destroyed_effect(x) for x in self.samples]
         self.voices=[]
+        self.loop_sample=None
+        self.loop_position=0
         self.chaos_mode=False
         self.voice_mode="CLEAN"
         self.voice_strength=.65
@@ -107,12 +78,10 @@ class Mixer:
             except Exception:pass
             raise
 
-    def play(self,index):
-        if self.stream is None:return
+    def set_loop(self, sample=None):
         with self.lock:
-            if len(self.voices)>=self.maximum_voices:self.voices.pop(0)
-            sound=self.chaos_samples[index] if self.chaos_mode else self.samples[index]
-            self.voices.append([sound,0])
+            self.loop_sample=np.ascontiguousarray(sample,dtype=np.float32) if sample is not None else None
+            self.loop_position=0
 
     def play_audio(self,audio):
         # The synthesized voice goes into the same live PortAudio output as your sounds.
@@ -121,11 +90,16 @@ class Mixer:
         if sample.ndim!=2 or sample.shape[1]!=2 or len(sample)==0:return False
         with self.lock:
             while len(self.voices)>=self.maximum_voices:self.voices.pop(0)
+            if self.chaos_mode:
+                sample=self.make_destroyed_effect(sample)
             self.voices.append([np.ascontiguousarray(sample),0])
         return True
 
     def clear(self):
-        with self.lock:self.voices.clear()
+        with self.lock:
+            self.voices.clear()
+            self.loop_sample=None
+            self.loop_position=0
 
     def mix(self,outdata,frames,mic=None):
         # Allocation-free mix buffer (provided by PortAudio).
@@ -143,6 +117,11 @@ class Mixer:
                 pos+=count
                 if pos<len(sample):live.append([sample,pos])
             self.voices=live
+            if self.loop_sample is not None and len(self.loop_sample):
+                sample=self.loop_sample
+                positions=(np.arange(frames,dtype=np.int64)+self.loop_position)%len(sample)
+                outdata[:frames,:]+=sample[positions,:]*self.effect_volume
+                self.loop_position=(self.loop_position+frames)%len(sample)
         # Smooth peak limiting; prevents digital clipping under repeated taps.
         np.tanh(outdata*1.10,out=outdata)
         outdata*=self.master*.93
@@ -177,8 +156,12 @@ class App(tk.Tk):
         self.repeat_id=None
         self.repeat_task=None
         self.interval=tk.StringVar(value="130")
-        self.cat=tk.StringVar(value="ALL")
+        self.cat=tk.StringVar(value="SAVED FAVORITES")
         self.search=tk.StringVar()
+        self.current_results=[]
+        self.loaded_samples={}
+        self.loop_mode=False
+        self.online_busy=False
         self.out_list=[]
         self.in_list=[]
         self.topmost=True
@@ -197,7 +180,7 @@ class App(tk.Tk):
         self.protocol("WM_DELETE_WINDOW",self.close)
         self.bind("<Escape>",lambda e:self.stop_sounds())
         for n in range(1,10):
-            self.bind(str(n),lambda e,index=n-1:self.mixer.play(index))
+            self.bind(str(n),lambda e,index=n-1:self.play_favorite_hotkey(index))
 
     def text(self,parent,s,size=10,color=WHITE,bold=False):
         return tk.Label(parent,text=s,fg=color,bg=parent.cget("bg"),
@@ -215,7 +198,7 @@ class App(tk.Tk):
         heading=tk.Frame(top,bg=BG)
         heading.pack(side="left",fill="x",expand=True)
         self.text(heading,"GILL SOUNDBOARD",23,WHITE,True).pack(anchor="w")
-        self.text(heading,"128 BUILT-IN SOUNDS  /  TYPE TO SPEAK  /  LIVE VOICE FX",10,ORANGE,True).pack(anchor="w")
+        self.text(heading,"REAL MEMES  /  LIVE SEARCH  /  LOOP  /  VOICE FX",10,ORANGE,True).pack(anchor="w")
         self.text(heading,"Real-time microphone mixing and virtual-cable output",10,DIM).pack(anchor="w",pady=(5,0))
 
         settings=tk.Frame(self,bg=PANEL);settings.pack(fill="x",padx=22,pady=6,ipady=8)
@@ -333,7 +316,7 @@ class App(tk.Tk):
         self.render_sounds()
 
         footer=tk.Frame(self,bg=BG);footer.pack(fill="x",padx=22,pady=(0,13))
-        self.text(footer,"HOLD TO REPEAT IN SPAM MODE  •  ESC = STOP  •  CHAOS IS INTENTIONALLY DISTORTED BUT VOLUME-LIMITED",9,DIM).pack(anchor="w")
+        self.text(footer,"FIND REAL MEMES • SAVE FAVORITES • LOOP OR HOLD TO SPAM • ESC = STOP",9,DIM).pack(anchor="w")
         self.text(footer,"VB-CABLE  /  SOUNDBOARD OUTPUT: CABLE INPUT  •  ROBLOX MIC: CABLE OUTPUT",9,ORANGE).pack(anchor="w",pady=(3,0))
 
     def render_sounds(self):
