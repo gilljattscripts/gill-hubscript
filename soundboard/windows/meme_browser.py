@@ -52,7 +52,7 @@ def sound_name(link):
 
 MEDIA_RE=re.compile(
     r"(?:https?:)?//(?:www\.)?myinstants\.com/media/sounds/[-_A-Za-z0-9%./+]+?\.(?:mp3|wav|ogg)"
-    r"|/media/sounds/[-_A-Za-z0-9%./+]+?\.(?:mp3|wav|ogg)",re.I)
+    r"|(?<![A-Za-z0-9./:])/media/sounds/[-_A-Za-z0-9%./+]+?\.(?:mp3|wav|ogg)",re.I)
 PAGE_RE=re.compile(r'href=["\u0027]([^"\u0027]*?/instant/[^"\u0027]+)["\u0027]',re.I)
 
 def parse_html(markup,limit=60):
