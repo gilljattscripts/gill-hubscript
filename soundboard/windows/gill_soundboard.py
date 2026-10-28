@@ -142,8 +142,8 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("GILL Soundboard")
-        self.geometry("850x700")
-        self.minsize(610,530)
+        self.geometry("930x785")
+        self.minsize(710,570)
         self.configure(bg=BG)
         try:
             icon=Path(sys._MEIPASS)/"gill_icon.ico" if getattr(sys,"frozen",False) else Path(__file__).resolve().parent/"gill_icon.ico"
@@ -229,6 +229,31 @@ class App(tk.Tk):
         vol.set(84);vol.pack(side="left")
         self.attributes("-topmost",True)
 
+        fxpanel=tk.Frame(self,bg=PANEL,highlightbackground="#40334e",highlightthickness=1)
+        fxpanel.pack(fill="x",padx=22,pady=(5,8))
+        head=tk.Frame(fxpanel,bg=PANEL)
+        head.pack(fill="x",padx=12,pady=(12,4))
+        self.text(head,"LIVE VOICE CHANGER",11,ORANGE,True).pack(side="left")
+        self.text(head,"MIC INPUT + VIRTUAL CABLE REQUIRED",9,DIM).pack(side="right")
+        settingsrow=tk.Frame(fxpanel,bg=PANEL)
+        settingsrow.pack(fill="x",padx=12,pady=(5,5))
+        self.text(settingsrow,"MIC EFFECT",9,DIM,True).pack(side="left",padx=(0,7))
+        voice=tk.ttk.Combobox(settingsrow,values=VOICE_MODES,state="readonly",
+            width=18,textvariable=self.voice_effect,style="Gill.TCombobox")
+        voice.pack(side="left")
+        voice.bind("<<ComboboxSelected>>",self.update_voice_fx)
+        self.text(settingsrow,"STRENGTH",9,DIM,True).pack(side="left",padx=(16,5))
+        strength=tk.Scale(settingsrow,orient="horizontal",from_=0,to=100,showvalue=True,
+            length=118,highlightthickness=0,bg=PANEL,fg=WHITE,activebackground=ORANGE,
+            troughcolor=CARD,command=self.update_voice_strength)
+        strength.set(65)
+        strength.pack(side="left")
+        self.chaosbtn=self.button(settingsrow,"SOUND CHAOS: OFF",self.toggle_chaos)
+        self.chaosbtn.pack(side="right",padx=(10,0))
+        self.text(fxpanel,
+            "DEEP / CHIPMUNK / ROBOT / RADIO / CAVE / DEMON / DESTROYED MIC  •  Sound Chaos is separate from microphone FX.",
+            9,DIM).pack(anchor="w",padx=12,pady=(1,12))
+
         filterrow=tk.Frame(self,bg=BG);filterrow.pack(fill="x",padx=22,pady=(9,7))
         self.text(filterrow,"CATEGORY",9,ORANGE,True).pack(side="left",padx=(0,6))
         categories=tk.ttk.Combobox(filterrow,state="readonly",width=20,style="Gill.TCombobox",
@@ -257,7 +282,7 @@ class App(tk.Tk):
         self.render_sounds()
 
         footer=tk.Frame(self,bg=BG);footer.pack(fill="x",padx=22,pady=(0,13))
-        self.text(footer,"HOLD ANY SOUND TO REPEAT WHEN SPAM IS ON  •  ESC = STOP",9,DIM).pack(anchor="w")
+        self.text(footer,"HOLD TO REPEAT IN SPAM MODE  •  ESC = STOP  •  CHAOS IS INTENTIONALLY DISTORTED BUT VOLUME-LIMITED",9,DIM).pack(anchor="w")
         self.text(footer,"VB-CABLE  /  SOUNDBOARD OUTPUT: CABLE INPUT  •  ROBLOX MIC: CABLE OUTPUT",9,ORANGE).pack(anchor="w",pady=(3,0))
 
     def render_sounds(self):
@@ -315,6 +340,20 @@ class App(tk.Tk):
         self.cancel_spam()
         self.spambtn.configure(text="SPAM: ON" if self.repeat else "SPAM: OFF",
                                bg=ORANGE if self.repeat else CARD,fg=BG if self.repeat else WHITE)
+    def update_voice_fx(self,event=None):
+        self.mixer.voice_mode=self.voice_effect.get()
+        if self.mixer.voice_mode!="CLEAN" and self.mic.current()==0:
+            self.status.configure(text="CHOOSE A MICROPHONE FOR VOICE FX",fg="#e9b184")
+
+    def update_voice_strength(self,value):
+        self.mixer.voice_strength=float(value)/100.0
+
+    def toggle_chaos(self):
+        self.mixer.chaos_mode=not self.mixer.chaos_mode
+        enabled=self.mixer.chaos_mode
+        self.chaosbtn.configure(text="SOUND CHAOS: ON" if enabled else "SOUND CHAOS: OFF",
+                                bg=ORANGE if enabled else CARD,fg=BG if enabled else WHITE)
+
     def toggle_topmost(self):
         self.topmost=not self.topmost
         self.attributes("-topmost",self.topmost)
