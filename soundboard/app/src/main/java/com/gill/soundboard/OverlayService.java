@@ -12,6 +12,8 @@ import android.graphics.PixelFormat;
 import android.graphics.drawable.GradientDrawable;
 import android.os.IBinder;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import android.view.Gravity;
 import android.view.MotionEvent;
@@ -34,6 +36,10 @@ public final class OverlayService extends Service {
     private WindowManager.LayoutParams params;
     private View floating;
     private boolean expanded=false;
+    private boolean spamMode=false;
+    private int spamIntervalMs=150;
+    private final Handler spamHandler=new Handler(Looper.getMainLooper());
+    private Runnable activeSpam;
     private static final int DARK=Color.rgb(16,17,23);
     private static final int PANEL=Color.rgb(27,29,38);
     private static final int TILE=Color.rgb(47,48,61);
@@ -101,6 +107,7 @@ public final class OverlayService extends Service {
     @Override public IBinder onBind(Intent intent){return null;}
 
     private void showFloating(){
+        stopSpam();
         if(window==null)return;
         if(floating!=null){
             try{window.removeView(floating);}catch(Exception ignored){}
@@ -174,6 +181,21 @@ public final class OverlayService extends Service {
         bp.leftMargin=dp(5);tools.addView(bigger,bp);
         bigger.setOnClickListener(v->resize(.1f));
         gap(box,7);
+        LinearLayout spamRow=new LinearLayout(this);
+        box.addView(spamRow,new LinearLayout.LayoutParams(-1,dp(33)));
+        TextView spamToggle=button(spamMode?"HOLD SPAM: ON":"HOLD SPAM: OFF");
+        spamToggle.setTextColor(spamMode?ORANGE:LIGHT);
+        spamRow.addView(spamToggle,new LinearLayout.LayoutParams(0,-1,2));
+        spamToggle.setOnClickListener(v->{stopSpam();spamMode=!spamMode;showFloating();});
+        TextView spamRate=button("RATE "+spamIntervalMs+"ms");
+        LinearLayout.LayoutParams rateParams=new LinearLayout.LayoutParams(0,-1,1);
+        rateParams.leftMargin=dp(5);
+        spamRow.addView(spamRate,rateParams);
+        spamRate.setOnClickListener(v->{
+            spamIntervalMs=(spamIntervalMs==150)?100:(spamIntervalMs==100)?250:150;
+            showFloating();
+        });
+        gap(box,7);
 
         ScrollView scroller=new ScrollView(this);
         scroller.setFillViewport(false);
@@ -193,7 +215,7 @@ public final class OverlayService extends Service {
                 LinearLayout.LayoutParams tile=new LinearLayout.LayoutParams(0,-1,1);
                 if(k%2==1)tile.leftMargin=dp(5);
                 row.addView(b,tile);
-                b.setOnClickListener(v->AudioEngine.play(this,clip));
+                bindSoundButton(b,clip);
             }
             if(i+1>=library.size()){
                 View filler=new View(this);
@@ -210,6 +232,37 @@ public final class OverlayService extends Service {
         box.addView(hint,new LinearLayout.LayoutParams(-1,dp(20)));
     }
 
+    private void stopSpam(){
+        if(activeSpam!=null){
+            spamHandler.removeCallbacks(activeSpam);
+            activeSpam=null;
+        }
+    }
+    private void bindSoundButton(TextView button,ClipStore.Clip clip){
+        button.setOnClickListener(v->AudioEngine.play(this,clip));
+        button.setOnTouchListener((view,event)->{
+            if(!spamMode)return false;
+            final int action=event.getActionMasked();
+            if(action==MotionEvent.ACTION_DOWN){
+                stopSpam();
+                AudioEngine.play(this,clip);
+                final Runnable[] task={null};
+                task[0]=()->{
+                    if(activeSpam!=task[0] || !spamMode)return;
+                    AudioEngine.play(this,clip);
+                    spamHandler.postDelayed(task[0],spamIntervalMs);
+                };
+                activeSpam=task[0];
+                spamHandler.postDelayed(activeSpam,spamIntervalMs);
+                return true;
+            }
+            if(action==MotionEvent.ACTION_UP || action==MotionEvent.ACTION_CANCEL){
+                stopSpam();
+                return true;
+            }
+            return true;
+        });
+    }
     private void resize(float delta){
         ClipStore.size(this,ClipStore.size(this)+delta);
         showFloating();
@@ -246,6 +299,7 @@ public final class OverlayService extends Service {
         };
     }
     @Override public void onDestroy(){
+        stopSpam();
         if(floating!=null && window!=null){
             try{window.removeView(floating);}catch(Exception ignored){}
             floating=null;

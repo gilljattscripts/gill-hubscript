@@ -72,6 +72,7 @@ public final class MainActivity extends Activity {
         content.setPadding(dp(20),dp(28),dp(20),dp(36));
         scroll.addView(content);
         setContentView(scroll);
+        AudioEngine.prepare(this);
 
         TextView title=label("G I L L   /   S O U N D",24,WHITE);
         title.setTypeface(null,1);
@@ -79,7 +80,7 @@ public final class MainActivity extends Activity {
         addSpace(content,7);
         content.addView(label("NO ADS  |  FLOATING SOUNDBOARD",11,ORANGE));
         addSpace(content,13);
-        TextView intro=label("Play sounds over games. Import your own MP3, WAV or other Android-supported audio clips.",14,MUTED);
+        TextView intro=label("24 built-in sounds are ready to play. Open the floating panel and tap or HOLD buttons to spam sounds. No importing required.",14,MUTED);
         intro.setLineSpacing(dp(3),1f);
         content.addView(intro);
         addSpace(content,24);
@@ -100,7 +101,7 @@ public final class MainActivity extends Activity {
         content.addView(overlayStatus);
         addSpace(content,26);
 
-        TextView add=button("+ IMPORT AUDIO FILES",false);
+        TextView add=button("+ OPTIONAL: ADD CUSTOM FILES",false);
         content.addView(add,new LinearLayout.LayoutParams(-1,dp(48)));
         add.setOnClickListener(v->pickFiles());
         addSpace(content,20);
@@ -128,7 +129,7 @@ public final class MainActivity extends Activity {
         clipsArea.setOrientation(LinearLayout.VERTICAL);
         content.addView(clipsArea);
         addSpace(content,18);
-        TextView note=label("Sound is played through Android media audio. Roblox microphone pickup is device-dependent; the app cannot force Roblox to transmit internal audio.",12,MUTED);
+        TextView note=label("SPAM MODE: In the floating panel, turn SPAM ON, then hold any sound button for rapid repeats. Built-in clips overlap for instant replay. Sound uses Android media output; Roblox voice transmission is device-dependent.",12,MUTED);
         note.setLineSpacing(dp(2),1f);
         content.addView(note);
         refreshClips();
