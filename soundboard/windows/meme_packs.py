@@ -103,29 +103,69 @@ def import_pack(filename):
         return len(fresh),len(full)
 
 
-def auto_import_embedded():
-    """Load original audio carried inside the finished EXE once.
-    
-    Source builds ship a harmless placeholder, replaced locally when packaging
-    the user's full 92-clip audio pack, so public GitHub never stores recordings.
+def _bundled_exe_pack():
+    """Find the private user pack preceding PyInstaller's PKG/CArchive.
+
+    PyInstaller's bootloader needs its cookie at the very end of the EXE.
+    The pack therefore sits before the CArchive (not after it), and the
+    bootloader still finds and loads its original archive unchanged.
     """
-    folder=(Path(sys._MEIPASS)/"assets") if getattr(sys,"frozen",False) else (
-        Path(__file__).resolve().parent/"assets")
-    bundled=folder/"gill_soundpack.txt"
+    import struct
+    import hashlib
+    import sys
+    if not getattr(sys,"frozen",False):return None
+    exe=Path(sys.executable)
+    marker=b"GILL_MEME_V1_END"  # fixed 16-byte trailer ID
+    trailer_size=32+8+len(marker)
+    with exe.open("rb") as f:
+        f.seek(0,2)
+        size=f.tell()
+        if size<88+trailer_size:return None
+        f.seek(size-88)
+        cookie=f.read(88)
+        if not cookie.startswith(b"MEI\x0c\x0b\x0a\x0b\x0e"):return None
+        carchive_size=struct.unpack_from(">I",cookie,8)[0]
+        start=size-carchive_size
+        if start<trailer_size:return None
+        f.seek(start-trailer_size)
+        trailer=f.read(trailer_size)
+        if len(trailer)!=trailer_size or trailer[-len(marker):]!=marker:return None
+        expected=trailer[:32]
+        pack_size=struct.unpack("<Q",trailer[32:40])[0]
+        if not 100<pack_size<220*1024*1024 or pack_size>start-trailer_size:return None
+        f.seek(start-trailer_size-pack_size)
+        pack=f.read(pack_size)
+        if len(pack)!=pack_size or hashlib.sha256(pack).digest()!=expected:
+            raise ValueError("Bundled meme recordings failed their integrity check")
+    result=app_folder()/"gill_bundled_original_memes.zip"
+    if result.exists() and result.stat().st_size==len(pack):
+        return result
+    temporary=result.with_suffix(".partial")
+    temporary.write_bytes(pack)
+    temporary.replace(result)
+    return result
+
+def auto_import_embedded():
+    """Load the 92 original recordings into the soundboard on first launch."""
+    import sys
     from zipfile import is_zipfile
-    # Final self-contained EXE carries the private sound pack as an appended ZIP.
-    # No separate download, import dialog, or web fetch is necessary.
-    if getattr(sys,"frozen",False) and is_zipfile(sys.executable):
-        bundled=Path(sys.executable)
-    elif not bundled.exists() or not is_zipfile(bundled):
-        return 0
+    embedded=_bundled_exe_pack()
+    if embedded is None:
+        folder=(Path(sys._MEIPASS)/"assets") if getattr(sys,"frozen",False) else (
+            Path(__file__).resolve().parent/"assets")
+        embedded=folder/"gill_soundpack.txt"
+        if not embedded.exists() or not is_zipfile(embedded):
+            return 0
+    if not is_zipfile(embedded):
+        raise ValueError("Invalid bundled meme pack")
     version="gill-pack-92-gangnam-v1"
     stamp=app_folder()/"built_in_pack_version.txt"
     try:
         if stamp.read_text(encoding="utf-8").strip()==version and len(imported_sounds())>=92:
             return 0
-    except Exception:pass
-    added,total=import_pack(bundled)
+    except Exception:
+        pass
+    added,total=import_pack(embedded)
     if total>=92:
         stamp.write_text(version,encoding="utf-8")
     return added
