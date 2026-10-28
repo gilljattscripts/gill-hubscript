@@ -14,7 +14,7 @@ from voice_fx import VoiceProcessor, VOICE_MODES
 from meme_browser import Meme, website_search, favorites, set_favorite, cached_audio, decode_pcm, SITE, youtube_search_link
 from meme_packs import import_pack, imported_sounds
 
-QUICK_SEARCHES=["I hate this game","man screaming","rage scream","gen z meme",
+QUICK_SEARCHES=["Gangnam Style","I hate this game","man screaming","rage scream","gen z meme",
                 "hindi meme","arey bhai","moye moye","bruh","goofy laugh","vine boom"]
 BG="#0d0c17"; PANEL="#191626"; CARD="#292239"
 ORANGE="#a663ff"; WHITE="#f5f0ff"; DIM="#b6accb"
@@ -304,7 +304,7 @@ class App(tk.Tk):
 
         quick=tk.Frame(self,bg=BG)
         quick.pack(fill="x",padx=22,pady=(0,5))
-        for row in range(2):
+        for row in range((len(QUICK_SEARCHES)+4)//5):
             line=tk.Frame(quick,bg=BG)
             line.pack(fill="x",pady=2)
             for term in QUICK_SEARCHES[row*5:row*5+5]:
