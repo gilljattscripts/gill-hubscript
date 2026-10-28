@@ -4,6 +4,7 @@
 
 local Players = game:GetService('Players')
 local UIS = game:GetService('UserInputService')
+local RunService=game:GetService('RunService')
 local TeleportService=game:GetService('TeleportService')
 local HttpService=game:GetService('HttpService')
 local vimOK, VirtualInputManager = pcall(function()return game:GetService('VirtualInputManager')end)
@@ -16,7 +17,7 @@ if type(sharedEnv.GillHalloweenUnload) == 'function' then pcall(sharedEnv.GillHa
 local alive = true
 local C = {}
 local S = {
-    farm = false, farmNoclip = true, farmHover = true, onlyCandy = false,
+    farm = false, farmNoclip = true, farmHover = true, farmSafety = true, onlyCandy = false,
     murder = false, sheriff = false, innocent = false,
     prestige = false, antiFling = true, esp = false, lowFX = false,
     loopEmote = false, autoConfirm = false, friendHop = false, reExecute = false, antiAFK = false, extraHotbar = false, hotbarLocked = false
@@ -29,6 +30,7 @@ local roleCache, lastRoleRequest = {}, 0
 local candidates, currentTarget, recentlyTried, lastContainer = {}, nil, {}, nil
 local originalCollision, originalFX = {}, {}
 local highlights, previousCharacter = {}, nil
+local hoverHold, safeFarmCFrame, lastSafeSample = nil, nil, 0
 local activeTrack
 local loaderURL = 'https://raw.githubusercontent.com/gilljattscripts/gill-hubscript/main/GILL_HUB_HALLOWEEN_V2.lua'
 -- Optional settings carried by the executor's teleport queue.
@@ -413,6 +415,8 @@ local function collectible(part, fromContainer)
     if not part:IsA('BasePart') or not part.Parent then return false end
     if part:IsDescendantOf(Me.Character or workspace.Terrain) then return false end
     local n=part.Name:lower()
+    local coinID=part:GetAttribute('CoinID')
+    if coinID=='Candy' or coinID=='Coin' then return true end
     if n:find('candy') or n:find('coin_server') or n=='coin' then return true end
     if fromContainer and (n:find('coin') or n:find('collect')) then return true end
     if fromContainer and part.Parent:IsA('Model') then
@@ -474,18 +478,31 @@ local function noclipCharacter()
         end
     end
 end
-local function moveTowards(root,point,dt)
-    local displacement=point-root.Position
-    local distance=displacement.Magnitude
-    if distance < .01 then return true end
-    local distancePerTick=math.min(distance, math.clamp(speed,1,30)*math.min(dt,.2))
-    local newPosition=root.Position+displacement.Unit*distancePerTick
-    root.CFrame=CFrame.new(newPosition)*root.CFrame.Rotation
-    if S.farmHover then
-        root.AssemblyLinearVelocity=Vector3.zero
-        root.AssemblyAngularVelocity=Vector3.zero
+local function stopFarmMotion()
+    if hoverHold then
+        pcall(function()hoverHold:Destroy()end)
+        hoverHold=nil
     end
-    return distance<3.2
+end
+local function moveTowards(root,point,dt)
+    local delta=point-root.Position
+    local dist=delta.Magnitude
+    if dist<.04 then return true end
+    local step=math.min(dist,math.clamp(speed,1,30)*math.clamp(dt,0,.07))
+    root.CFrame=CFrame.new(root.Position+delta.Unit*step)*root.CFrame.Rotation
+    return dist<3.5
+end
+local function maintainHover(root)
+    if not S.farmHover then stopFarmMotion();return end
+    if hoverHold and hoverHold.Parent~=root then stopFarmMotion() end
+    if not hoverHold then
+        hoverHold=Instance.new('BodyVelocity')
+        hoverHold.Name='GillFarmHover'
+        hoverHold.MaxForce=Vector3.new(0,100000,0)
+        hoverHold.P=4500
+        hoverHold.Velocity=Vector3.zero
+        hoverHold.Parent=root
+    end
 end
 local function bagTextProgress()
     local pg=Me:FindFirstChildOfClass('PlayerGui')
@@ -519,8 +536,7 @@ local function fullActionAllowed()
 end
 local function tryCollect(root,target)
     if not target or not target.Parent then return end
-    local close=moveTowards(root,target.Position,.1)
-    if close then
+    if (root.Position-target.Position).Magnitude<3.5 then
         local initialParent=target.Parent
         pcall(function()
             if type(firetouchinterest)=='function' then
@@ -529,6 +545,7 @@ local function tryCollect(root,target)
             end
         end)
         recentlyTried[target]=os.clock()+4
+        currentTarget=nil
         local stamp=roundStamp
         task.delay(.35,function()
             if alive and stamp==roundStamp and (not target.Parent or target.Parent~=initialParent) then
@@ -875,12 +892,13 @@ label(farmTab,'CANDY / COIN AUTOFARM','Targets known MM2 collection containers. 
 toggle(farmTab,'Auto collect','farm')
 toggle(farmTab,'Noclip while farming','farmNoclip')
 toggle(farmTab,'Hover while collecting','farmHover')
+toggle(farmTab,'Pause and recover near void','farmSafety')
 toggle(farmTab,'Only objects named candy','onlyCandy')
 toggle(farmTab,'Auto full-bag from collected count','autoConfirm')
 range(farmTab,'Travel speed (max 30)',1,30,speed,1,function(x)speed=x end)
 range(farmTab,'Bag goal if HUD unknown',5,60,bagGoal,5,function(x)bagGoal=x end)
 action(farmTab,'Mark bag FULL manually',function()manualFull=true end)
-action(farmTab,'Reset collected count',resetRound)
+action(farmTab,'Reset farm tracking',resetRound)
 
 label(roleTab,'AFTER BAG IS FULL','Actions are role-gated. None should run before full-bag detection.')
 toggle(roleTab,'Murderer: attack other players','murder')
@@ -1081,10 +1099,50 @@ for k,p in pairs(pages) do p.Visible=(k=='Farm') end
 tabButtons['Farm'].BackgroundColor3=palette.orange
 
 local nextStatus, nextESP, nextFX, nextBag, nextHotbar = 0,0,0,0,0
+-- Movement updates on Heartbeat instead of the slow UI/coin scanning loop.
+bind(RunService.Heartbeat:Connect(function(dt)
+    if not alive then return end
+    local _,hum,root=characterOf(Me)
+    if not root or not hum or hum.Health<=0 then stopFarmMotion();return end
+    local activelyFarming=S.farm and not fullBag() and not flingBusy and not hopBusy
+    local now=os.clock()
+    if S.farmSafety and not activelyFarming and now-lastSafeSample>.6 then
+        lastSafeSample=now
+        if hum.FloorMaterial~=Enum.Material.Air and root.AssemblyLinearVelocity.Magnitude<55 then
+            safeFarmCFrame=root.CFrame
+        end
+    end
+    if not activelyFarming or not currentTarget or not currentTarget.Parent then
+        stopFarmMotion()
+        return
+    end
+    local height=workspace.FallenPartsDestroyHeight+65
+    local badTarget=currentTarget.Position.Y<height
+    local badCharacter=root.Position.Y<height
+    if safeFarmCFrame and root.Position.Y<safeFarmCFrame.Position.Y-60 then
+        badCharacter=true
+    end
+    if S.farmSafety and (badCharacter or badTarget) then
+        S.farm=false
+        currentTarget=nil
+        stopFarmMotion()
+        if badCharacter and safeFarmCFrame then
+            root.AssemblyLinearVelocity=Vector3.zero
+            root.AssemblyAngularVelocity=Vector3.zero
+            root.CFrame=safeFarmCFrame
+        end
+        refreshSwitches()
+        status.Text='Auto collect paused: unsafe position'
+        restoreCollision()
+        return
+    end
+    maintainHover(root)
+    moveTowards(root,currentTarget.Position,dt)
+end))
 local function unload()
     if not alive then return end
     alive=false
-    stopEmote();restoreCollision();fx(false);clearESP();cancelFling=true
+    stopEmote();stopFarmMotion();restoreCollision();fx(false);clearESP();cancelFling=true
     hotbarPanel.Visible=false
     resetPack()
     for _,c in ipairs(C) do pcall(function()c:Disconnect()end) end
@@ -1094,7 +1152,8 @@ end
 sharedEnv.GillHalloweenUnload=unload
 bind(Me.CharacterAdded:Connect(function()
     roleCache={}
-    stopEmote();restoreCollision();resetRound()
+    stopEmote();stopFarmMotion();restoreCollision();resetRound()
+    safeFarmCFrame=nil
     previousCharacter=Me.Character
     table.clear(savedAnimate)
     if selectedPack or next(packOverrides) then task.delay(1,function()if alive then applyPack()end end) end
@@ -1175,6 +1234,6 @@ task.spawn(function()
           warn('GILL HUB module error: '..tostring(reason))
           lastWarning=os.clock()
       end
-      task.wait((S.farm or flingBusy or S.antiFling) and .1 or .3)
+      task.wait((S.farm or flingBusy) and .12 or .4)
     end
 end)
