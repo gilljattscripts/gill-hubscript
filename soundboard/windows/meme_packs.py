@@ -112,9 +112,13 @@ def auto_import_embedded():
     folder=(Path(sys._MEIPASS)/"assets") if getattr(sys,"frozen",False) else (
         Path(__file__).resolve().parent/"assets")
     bundled=folder/"gill_soundpack.txt"
-    if not bundled.exists():return 0
     from zipfile import is_zipfile
-    if not is_zipfile(bundled):return 0
+    # Final self-contained EXE carries the private sound pack as an appended ZIP.
+    # No separate download, import dialog, or web fetch is necessary.
+    if getattr(sys,"frozen",False) and is_zipfile(sys.executable):
+        bundled=Path(sys.executable)
+    elif not bundled.exists() or not is_zipfile(bundled):
+        return 0
     version="gill-pack-92-gangnam-v1"
     stamp=app_folder()/"built_in_pack_version.txt"
     try:
