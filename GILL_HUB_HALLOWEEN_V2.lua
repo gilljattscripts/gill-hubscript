@@ -19,7 +19,7 @@ local S = {
     farm = false, farmNoclip = true, farmHover = true, onlyCandy = false,
     murder = false, sheriff = false, innocent = false,
     prestige = false, antiFling = true, esp = false, lowFX = false,
-    loopEmote = false, autoConfirm = false, friendHop = false, reExecute = false, antiAFK = false
+    loopEmote = false, autoConfirm = false, friendHop = false, reExecute = false, antiAFK = false, extraHotbar = false
 }
 local speed, bagGoal, animSpeed = 20, 40, 1
 local observed, bagCurrent, bagMaximum = 0, nil, nil
@@ -30,7 +30,7 @@ local candidates, currentTarget, recentlyTried, lastContainer = {}, nil, {}, nil
 local originalCollision, originalFX = {}, {}
 local highlights, previousCharacter = {}, nil
 local activeTrack
-local loaderURL = ''
+local loaderURL = 'https://raw.githubusercontent.com/gilljattscripts/gill-hubscript/main/GILL_HUB_HALLOWEEN_V2.lua'
 -- Optional settings carried by the executor's teleport queue.
 local remembered=sharedEnv.GillHalloweenResume
 if type(remembered)=='table' then
@@ -217,6 +217,7 @@ local viewTab = tab('Visuals')
 local emoteTab = tab('Animations')
 local guardTab = tab('Protection')
 local flingTab = tab('Fling')
+local toolsTab = tab('Hotbar')
 local friendsTab = tab('Friends')
 local settingsTab = tab('Settings')
 local function label(page, title, sub)
@@ -318,6 +319,69 @@ drag(bubble,bubble)
 drag(header,panel)
 bind(bubble.MouseButton1Click:Connect(function()panel.Visible=not panel.Visible end))
 bind(exit.MouseButton1Click:Connect(function()panel.Visible=false end))
+
+-- Optional compact tool picker for mobile; only equips real tools in your Backpack/character.
+local hotbarPanel=new('Frame',{
+    Name='ExtraHotbar', Size=UDim2.fromOffset(312,62), Position=UDim2.new(.5,-156,1,-134),
+    Visible=S.extraHotbar, BackgroundColor3=palette.bg
+},gui)
+corner(hotbarPanel,11)
+new('UIStroke',{Color=palette.orange,Thickness=1.25,Transparency=.23},hotbarPanel)
+local hotbarList=new('ScrollingFrame',{
+    Position=UDim2.fromOffset(8,7),Size=UDim2.new(1,-16,1,-14),BackgroundTransparency=1,
+    ScrollingDirection=Enum.ScrollingDirection.X,ScrollBarThickness=2,ScrollBarImageColor3=palette.orange,
+    AutomaticCanvasSize=Enum.AutomaticSize.X,CanvasSize=UDim2.fromOffset(0,0)
+},hotbarPanel)
+new('UIListLayout',{FillDirection=Enum.FillDirection.Horizontal,Padding=UDim.new(0,5)},hotbarList)
+drag(hotbarPanel,hotbarPanel)
+local hotbarSignature=''
+local function refreshHotbar(force)
+    if not alive or not S.extraHotbar then return end
+    local backpack=Me:FindFirstChildOfClass('Backpack')
+    local char=Me.Character
+    local tools={}
+    for _,container in ipairs({backpack,char}) do
+        if container then
+            for _,item in ipairs(container:GetChildren()) do
+                if item:IsA('Tool') then tools[#tools+1]=item end
+            end
+        end
+    end
+    table.sort(tools,function(a,b)return a.Name<b.Name end)
+    local signature={}
+    for _,tool in ipairs(tools) do
+        signature[#signature+1]=tool.Name..':'..tostring(tool.Parent==char)
+    end
+    local key=table.concat(signature,'|')
+    if not force and key==hotbarSignature then return end
+    hotbarSignature=key
+    for _,item in ipairs(hotbarList:GetChildren()) do
+        if not item:IsA('UIListLayout') then item:Destroy() end
+    end
+    if #tools==0 then
+        new('TextLabel',{Size=UDim2.fromOffset(285,42),BackgroundTransparency=1,
+            Text='No equipped / backpack tools available',TextSize=12,
+            Font=Enum.Font.Gotham,TextColor3=palette.dim},hotbarList)
+        return
+    end
+    for _,tool in ipairs(tools) do
+        local equipped=tool.Parent==char
+        local btn=new('TextButton',{
+            Size=UDim2.fromOffset(92,42),BackgroundColor3=equipped and palette.orange or palette.raised,
+            Text=tool.Name,TextTruncate=Enum.TextTruncate.AtEnd,TextColor3=palette.text,
+            TextSize=11,Font=Enum.Font.GothamBold
+        },hotbarList)
+        corner(btn,8)
+        btn.MouseButton1Click:Connect(function()
+            local current,bHum=characterOf(Me)
+            local pack=Me:FindFirstChildOfClass('Backpack')
+            if not bHum or (tool.Parent~=current and tool.Parent~=pack) then return end
+            if tool.Parent==current then bHum:UnequipTools() else equip(tool) end
+            task.delay(.1,function()if alive then refreshHotbar(true) end end)
+        end)
+    end
+end
+
 
 -- Farm targets: standard MM2 CoinContainer, plus recognizable event-candy names.
 local function collectible(part, fromContainer)
@@ -845,8 +909,24 @@ action(emoteTab,'Moonwalk animation (use custom ID above)',function()
     say('Use an available moonwalk asset ID in the custom emote field',7)
 end)
 action(emoteTab,'Restore original avatar animation pack',resetPack)
-action(emoteTab,'STOP emote',stopEmote)
+action(emoteTab,'Stop current emote',stopEmote)
+action(emoteTab,'STOP ALL animations / restore avatar',function()
+    stopEmote()
+    resetPack()
+end)
 
+
+label(toolsTab,'EXPANDED MOBILE HOTBAR','Shows actual tools in your Backpack and character. Cannot grant or unlock items.')
+local hotbarSwitch=toggle(toolsTab,'Enable extra tool bar','extraHotbar')
+bind(hotbarSwitch.MouseButton1Click:Connect(function()
+    task.defer(function()
+        if not alive then return end
+        hotbarPanel.Visible=S.extraHotbar
+        if S.extraHotbar then refreshHotbar(true) else hotbarSignature='' end
+    end)
+end))
+action(toolsTab,'Refresh available tools',function()refreshHotbar(true)end)
+label(toolsTab,'USE','Drag the separate hotbar to reposition it. Tap a tool to equip or unequip.')
 
 label(guardTab,'LOCAL PROTECTION','Anti-fling reduces extreme velocity, but cannot bypass all fling methods.')
 toggle(guardTab,'Velocity anti-fling','antiFling')
@@ -858,6 +938,57 @@ action(guardTab,'Clear velocity now',function()
 end)
 
 label(flingTab,'PHYSICS / MANUAL FLING','Experimental. May fail if other clients do not replicate character physics.')
+
+local selectedFlingPlayer=nil
+local selectedFlingText=label(flingTab,'PLAYER PICKER','Tap a player below. The list updates when players join or leave.')
+local pickerFrame=new('ScrollingFrame',{
+    Size=UDim2.new(1,-3,0,124),BackgroundColor3=palette.card,ScrollBarThickness=3,
+    ScrollBarImageColor3=palette.orange,AutomaticCanvasSize=Enum.AutomaticSize.Y,
+    CanvasSize=UDim2.fromOffset(0,0)
+},flingTab)
+corner(pickerFrame,8)
+new('UIListLayout',{Padding=UDim.new(0,4)},pickerFrame)
+local function refreshPicker()
+    if not alive then return end
+    for _,child in ipairs(pickerFrame:GetChildren()) do
+        if not child:IsA('UIListLayout') then child:Destroy() end
+    end
+    if selectedFlingPlayer and selectedFlingPlayer.Parent~=Players then selectedFlingPlayer=nil end
+    selectedFlingText.Text=selectedFlingPlayer and ('Selected: '..selectedFlingPlayer.Name)
+        or 'Tap a player to select (refreshes automatically)'
+    local participants={}
+    for _,p in ipairs(Players:GetPlayers()) do
+        if p~=Me then participants[#participants+1]=p end
+    end
+    table.sort(participants,function(a,b)return a.Name:lower()<b.Name:lower() end)
+    for _,p in ipairs(participants) do
+        local b=new('TextButton',{
+            Size=UDim2.new(1,-8,0,29),BackgroundColor3=(selectedFlingPlayer==p) and palette.orange or palette.raised,
+            Text=p.DisplayName..'  (@'..p.Name..')',TextColor3=palette.text,
+            TextSize=11,TextTruncate=Enum.TextTruncate.AtEnd,Font=Enum.Font.GothamMedium
+        },pickerFrame)
+        corner(b,6)
+        b.MouseButton1Click:Connect(function()
+            selectedFlingPlayer=p
+            refreshPicker()
+        end)
+    end
+end
+bind(Players.PlayerAdded:Connect(function()task.defer(refreshPicker)end))
+bind(Players.PlayerRemoving:Connect(function(p)
+    if selectedFlingPlayer==p then selectedFlingPlayer=nil end
+    task.defer(refreshPicker)
+end))
+action(flingTab,'Refresh player list',refreshPicker)
+action(flingTab,'Fling selected player',function()
+    if not selectedFlingPlayer or selectedFlingPlayer.Parent~=Players then
+        say('Select a player in the list first')
+        return
+    end
+    flingTargets({selectedFlingPlayer})
+end)
+task.defer(refreshPicker)
+
 local flingName=new('TextBox',{Size=UDim2.new(1,-3,0,37),BackgroundColor3=palette.raised,
     Text='',PlaceholderText='Enter username or display name',ClearTextOnFocus=false,
     TextColor3=palette.text,PlaceholderColor3=palette.dim,Font=Enum.Font.Gotham,TextSize=12},flingTab)
@@ -913,11 +1044,12 @@ if S.friendHop then task.defer(checkCurrentFriends) end
 for k,p in pairs(pages) do p.Visible=(k=='Farm') end
 tabButtons['Farm'].BackgroundColor3=palette.orange
 
-local nextStatus, nextESP, nextFX, nextBag = 0,0,0,0
+local nextStatus, nextESP, nextFX, nextBag, nextHotbar = 0,0,0,0,0
 local function unload()
     if not alive then return end
     alive=false
     stopEmote();restoreCollision();fx(false);clearESP();cancelFling=true
+    hotbarPanel.Visible=false
     resetPack()
     for _,c in ipairs(C) do pcall(function()c:Disconnect()end) end
     pcall(function()gui:Destroy()end)
@@ -960,6 +1092,10 @@ task.spawn(function()
         if now>=nextBag then
             nextBag=now+1
             bagCurrent,bagMaximum=bagTextProgress()
+        end
+        if S.extraHotbar and now>=nextHotbar then
+            nextHotbar=now+1.2
+            refreshHotbar(false)
         end
         local role=currentRole()
         local bagFull=fullBag()
