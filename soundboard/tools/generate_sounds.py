@@ -107,17 +107,81 @@ CATALOG=[
     "WOBBLE BASS",
     "BRAIN FREEZE",
     "ALIEN SQUEAL",
-    "OVERLOAD"
+    "OVERLOAD",
+    "SOFT BREATH", "NERVOUS GASP", "FAKE CHUCKLE", "THROAT CLEAR", "SHARP SIGH", "HMM VOICE", "HUH VOICE", "FAKE COUGH",
+    "KEYBOARD TAP", "RAPID TYPING", "MECHANICAL KEYS", "SPACEBAR", "MOUSE CLICK", "DOUBLE CLICK", "DESK THUMP", "HEADSET RUSTLE",
+    "UH OH VOICE", "SHORT LAUGH", "CONFUSED HUM", "YAWN FX", "ROBOT GASP", "VOICE CRACK", "CARTOON SNEEZE", "FAKE WHISPER",
+    "DISTORTED LAUGH", "GLITCH VOICE", "KEYBOARD RAGE", "LOUD EXHALE", "STREAM ALERT", "TAP STORM", "PUNCHLINE", "LAST STRAW"
 ]
-CATEGORIES=["LOUD / BASS","FUNNY / CARTOON","DRAMA / MEMES","ARCADE / RETRO","EFFECTS / SPACE","ALERTS / EXTRA","MEME REACTIONS","GAMING / FAILS","HORROR / HAUNTED","GLITCH / TECH","MUSIC / STINGS","CHAOS / TROLL"]
-assert len(CATALOG)==96 and len(CATEGORIES)==12
+CATEGORIES=["LOUD / BASS","FUNNY / CARTOON","DRAMA / MEMES","ARCADE / RETRO","EFFECTS / SPACE","ALERTS / EXTRA","MEME REACTIONS","GAMING / FAILS","HORROR / HAUNTED","GLITCH / TECH","MUSIC / STINGS","CHAOS / TROLL","VOICE REACTIONS","KEYBOARD / DESK","VOICE / FUNNY","CHAOS / EXTRA"]
+assert len(CATALOG)==128 and len(CATEGORIES)==16
 
 def duration(index):
     if index in (4,9,16,22,30,39,46,52,60,62,73,78,91):return 0.34
     if index in (0,1,8,10,14,20,26,33,37,40,53,59,64,65,69,80,81,88,89,90):return 0.86
     return 0.43 + (index*11%20)/100.0
 
+def live_foley(index):
+    """Quick synthesized foley for keys, breath, thumps and cartoon reactions.
+
+    These are *not* human recordings. Each texture is created entirely offline
+    at build time, for instant playback without voice synthesis on button tap.
+    """
+    category=index//8
+    variant=index%8
+    length=.35 if category==13 else (.65 if category==12 else .55)
+    length+=(variant%3)*.08
+    rng=random.Random(31009+index*83)
+    n=int(RATE*length)
+    frequency=105+variant*24
+    phase=0.0
+    out=[]
+    filt=0.0
+    # Rapid keyboard and clicking patterns. Single click variants remain short.
+    events=[0.002]
+    if category==13:
+        if variant in (1,2,7):
+            events=[.02+i*.058 for i in range(max(2,int(length/.058)-1))]
+        elif variant==5:events=[.02,.105]
+        elif variant==6:events=[.018,.070]
+    if category==15 and variant in (2,5):
+        events=[.02+i*.045 for i in range(int(length/.045))]
+    for i in range(n):
+        t=i/RATE
+        p=i/n
+        phase+=2*math.pi*(frequency+22*math.sin(2*math.pi*2.5*t))/RATE
+        noise=rng.random()*2-1
+        filt+=.16*(noise-filt)
+        attack=min(1,t/.002)
+        release=min(1,max(0,length-t)/.015)
+        base=attack*release
+        if category==13 or (category==15 and variant in (2,5)):
+            transient=0.0
+            for start in events:
+                if start<=t<start+.060:
+                    z=t-start
+                    transient+=math.exp(-z*90)*(noise*.52+math.sin(2*math.pi*170*z)*.28)
+            v=transient
+        elif category==12: # air, sighs, faux chuckles
+            vowels=math.sin(phase)+.28*math.sin(2.13*phase)+.16*math.sin(3.7*phase)
+            breath=noise*.30+filt*.9
+            modulation=(.55+.45*math.sin(2*math.pi*(3+variant)*t)**2)
+            v=(vowels*(.20 if variant in (0,1,4,7) else .45)
+               +breath*(.65 if variant in (0,1,4,7) else .28))*modulation
+            v*=math.sin(math.pi*p)**.7
+        else: # cartoon vocalizations, glitch/chaos sound effects
+            v=(math.sin(phase)+.5*math.sin(2.33*phase)+.3*filt)
+            if variant in (1,4,6):v+=noise*.22
+            v*=.45+.55*math.sin(2*math.pi*(3+variant)*t)**2
+            v*=math.sin(math.pi*p)**.6
+        out.append(math.tanh(v*.95)*base)
+    peak=max(.0001,max(abs(x) for x in out))
+    return [x*.78/peak for x in out]
+
+
 def sample_waves(index):
+    if index>=96:
+        return live_foley(index)
     seconds=duration(index)
     count=round(RATE*seconds)
     rng=random.Random(77411+index*29)
