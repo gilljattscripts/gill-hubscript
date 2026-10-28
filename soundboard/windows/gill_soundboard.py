@@ -6,12 +6,13 @@ import wave
 import webbrowser
 from pathlib import Path
 import tkinter as tk
-from tkinter import ttk, messagebox, simpledialog
+from tkinter import ttk, messagebox, simpledialog, filedialog
 from tts_engine import DEFAULT_VOICES, custom_profiles, save_custom_profile, remove_custom_profile, synthesize, process_tts
 import numpy as np
 import sounddevice as sd
 from voice_fx import VoiceProcessor, VOICE_MODES
 from meme_browser import Meme, website_search, favorites, set_favorite, cached_audio, decode_pcm, SITE, youtube_search_link
+from meme_packs import import_pack, imported_sounds
 
 QUICK_SEARCHES=["I hate this game","man screaming","rage scream","gen z meme",
                 "hindi meme","arey bhai","moye moye","bruh","goofy laugh","vine boom"]
@@ -299,6 +300,7 @@ class App(tk.Tk):
         self.button(browser,"SEARCH",self.search_online,True).pack(side="left",padx=(7,0))
         self.button(browser,"MYINSTANTS",self.open_myinstants).pack(side="left",padx=(6,0))
         self.button(browser,"YOUTUBE",self.open_youtube).pack(side="left",padx=(6,0))
+        self.button(browser,"IMPORT ZIP",self.import_zip,True).pack(side="left",padx=(6,0))
 
         quick=tk.Frame(self,bg=BG)
         quick.pack(fill="x",padx=22,pady=(0,5))
@@ -313,7 +315,7 @@ class App(tk.Tk):
         bar.pack(fill="x",padx=22,pady=(0,6))
         self.text(bar,"SHOW",9,ORANGE,True).pack(side="left",padx=(0,8))
         selector=tk.ttk.Combobox(bar,state="readonly",width=19,
-            values=["SAVED FAVORITES","SEARCH RESULTS"],style="Gill.TCombobox",
+            values=["IMPORTED PACK","SAVED FAVORITES","SEARCH RESULTS"],style="Gill.TCombobox",
             textvariable=self.cat)
         selector.pack(side="left")
         selector.bind("<<ComboboxSelected>>",lambda e:self.render_sounds())
@@ -336,16 +338,46 @@ class App(tk.Tk):
         self.canvas.bind("<Configure>",lambda e:self.canvas.itemconfigure("inner",width=max(80,e.width-20)))
         self.canvas.bind_all("<MouseWheel>",lambda e:self.canvas.yview_scroll(-int(e.delta/120),"units"))
         for col in range(3):self.grid.grid_columnconfigure(col,weight=1,uniform="gill")
+        self.search.trace_add("write",lambda *_:self.render_sounds()
+            if hasattr(self,"grid") and self.cat.get()=="IMPORTED PACK" else None)
         self.render_sounds()
 
         footer=tk.Frame(self,bg=BG)
         footer.pack(fill="x",padx=22,pady=(0,12))
         self.text(footer,
-            "REAL AUDIO FROM MYINSTANTS • NO GENERATED MEMES • SELECT TO SAVE • ESC = STOP",
+            "IMPORT ONE ZIP FOR ALL MEMES • ORIGINAL AUDIO ONLY • LOOP • ESC = STOP",
             9,DIM).pack(anchor="w")
         self.text(footer,
             "FOR ROBLOX: APP OUTPUT = CABLE INPUT  •  ROBLOX MICROPHONE = CABLE OUTPUT",
             9,ORANGE).pack(anchor="w",pady=(3,0))
+
+    def import_zip(self):
+        filename=filedialog.askopenfilename(parent=self,title="Choose your cleaned GILL Meme ZIP",
+            filetypes=[("ZIP sound packs","*.zip"),("All files","*.*")])
+        if not filename:return
+        self.sound_status.configure(text="IMPORTING YOUR ORIGINAL MEMES...",fg=ORANGE)
+        def worker():
+            try:
+                new,total=import_pack(filename)
+                error=None
+            except Exception as exc:
+                new,total=0,0
+                error=str(exc)
+            def finished():
+                if error:
+                    self.sound_status.configure(text="ZIP IMPORT FAILED",fg="#ff928d")
+                    messagebox.showerror("Import Meme ZIP",error)
+                    return
+                self.search.set("")
+                self.cat.set("IMPORTED PACK")
+                self.render_sounds()
+                self.sound_status.configure(text=str(total)+" OFFLINE CLIPS / "+str(new)+" NEW",fg="#70e1a2")
+                messagebox.showinfo("Real Meme ZIP Imported",
+                    str(new)+" new clips ready to play offline.\n"+
+                    "All "+str(total)+" imported sounds are available in IMPORTED PACK.")
+            try:self.after(0,finished)
+            except Exception:pass
+        threading.Thread(target=worker,daemon=True).start()
 
     def search_online(self,term=None):
         q=(term if term is not None else self.search.get()).strip()
@@ -391,10 +423,17 @@ class App(tk.Tk):
     def render_sounds(self):
         if not hasattr(self,"grid"):return
         for child in self.grid.winfo_children():child.destroy()
-        entries=favorites() if self.cat.get()=="SAVED FAVORITES" else self.current_results
+        if self.cat.get()=="IMPORTED PACK":
+            entries=imported_sounds()
+            term=self.search.get().lower().strip()
+            if term:entries=[x for x in entries if term in x.title.lower()]
+        elif self.cat.get()=="SAVED FAVORITES":
+            entries=favorites()
+        else:
+            entries=self.current_results
         if not entries:
             notice=self.text(self.grid,
-                "NO SAVED MEMES YET • SEARCH ONLINE AND SAVE THE REAL CLIPS YOU LIKE",
+                "NO CLIPS HERE • IMPORT YOUR GILL-MEMES-CLEANED.ZIP OR SEARCH ONLINE",
                 11,DIM)
             notice.grid(row=0,column=0,columnspan=3,padx=15,pady=28)
             return
@@ -417,10 +456,15 @@ class App(tk.Tk):
             actions.pack(fill="x",padx=8,pady=(1,8))
             self.button(actions,"▶ PLAY",lambda m=item:self.play_meme(m),True).pack(
                 side="left",fill="x",expand=True)
-            self.button(actions,"★" if item.url in saved else "☆",
-                lambda m=item:self.toggle_favorite(m)).pack(side="left",padx=(5,0))
-            self.button(actions,"SITE",lambda m=item:webbrowser.open(m.page)).pack(
-                side="left",padx=(5,0))
+            if item.url.startswith("file:"):
+                self.button(actions,"LOCAL",lambda p=item.url[5:]:
+                    os.startfile(str(Path(p).parent)) if os.name=="nt" else None).pack(
+                    side="left",padx=(5,0))
+            else:
+                self.button(actions,"★" if item.url in saved else "☆",
+                    lambda m=item:self.toggle_favorite(m)).pack(side="left",padx=(5,0))
+                self.button(actions,"SITE",lambda m=item:webbrowser.open(m.page)).pack(
+                    side="left",padx=(5,0))
             for widget in (card,heading,title,icon):
                 widget.bind("<ButtonPress-1>",lambda e,m=item:self.press(m))
                 widget.bind("<ButtonRelease-1>",lambda e:self.cancel_spam())
@@ -450,7 +494,10 @@ class App(tk.Tk):
         self.sound_status.configure(text="LOADING ACTUAL MEME / "+item.title[:30],fg=ORANGE)
         def fetch():
             try:
-                audio=decode_pcm(cached_audio(item.url))
+                if item.url.startswith("file:"):
+                    audio=decode_pcm(Path(item.url[5:]))
+                else:
+                    audio=decode_pcm(cached_audio(item.url))
                 failure=""
             except Exception as ex:
                 audio=None
