@@ -109,7 +109,9 @@ final class AudioEngine {
             mp.setAudioAttributes(new AudioAttributes.Builder()
                 .setUsage(AudioAttributes.USAGE_MEDIA)
                 .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build());
-            if(OnlineFavorites.valid(uri.toString())){
+            if("file".equals(uri.getScheme())){
+                mp.setDataSource(uri.getPath());
+            }else if(OnlineFavorites.valid(uri.toString())){
                 mp.setDataSource(uri.toString());
             }else{
                 mp.setDataSource(context.getApplicationContext(),uri);
