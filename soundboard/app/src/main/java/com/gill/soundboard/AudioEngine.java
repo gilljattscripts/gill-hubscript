@@ -15,8 +15,8 @@ import java.util.List;
 import java.util.Map;
 
 final class AudioEngine {
-    // High quality 48 kHz stereo WAVs are generated and bundled at APK build time.
-    // All 48 are loaded into a shared SoundPool; no synthesis or file decoding on tap.
+    // Real meme recordings are streamed on demand, not synthesized or bundled.
+    // SoundPool remains available for backwards compatibility with optional local samples.
     private static final int MAX_STREAMS=10;
     private static SoundPool pool;
     private static final Map<Integer,Integer> presetIds=new HashMap<>();
@@ -109,12 +109,17 @@ final class AudioEngine {
             mp.setAudioAttributes(new AudioAttributes.Builder()
                 .setUsage(AudioAttributes.USAGE_MEDIA)
                 .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build());
-            mp.setDataSource(context.getApplicationContext(),uri);
+            if(OnlineFavorites.valid(uri.toString())){
+                mp.setDataSource(uri.toString());
+            }else{
+                mp.setDataSource(context.getApplicationContext(),uri);
+            }
             mp.setOnPreparedListener(player->{
                 synchronized(AudioEngine.class){
                     if(activeFiles.contains(player)){
                         float level=ClipStore.volume(context)/100f*.6f;
                         player.setVolume(level,level);
+                        player.setLooping(ClipStore.loop(context));
                         player.start();
                     }
                 }
@@ -124,7 +129,13 @@ final class AudioEngine {
             mp.prepareAsync();
         }catch(Exception ex){
             releaseFile(mp);
-            Toast.makeText(context,"Unable to play file",Toast.LENGTH_SHORT).show();
+            Toast.makeText(context,"Clip unavailable. Check connection or source.",Toast.LENGTH_SHORT).show();
+        }
+    }
+    static synchronized void setLoop(Context c,boolean enable){
+        ClipStore.loop(c,enable);
+        for(MediaPlayer player:activeFiles){
+            try{player.setLooping(enable);}catch(Exception ignored){}
         }
     }
     private static synchronized void releaseFile(MediaPlayer mp){
