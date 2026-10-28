@@ -292,7 +292,7 @@ public final class MainActivity extends Activity {
         iconBG.setCompoundDrawables(null,null,null,null);
         iconBG.setPadding(dp(6),dp(6),dp(6),dp(6));
         iconBG.setBackground(BrandStyle.bg(PANEL,dp(9),false));
-        iconBG.setCompoundDrawables(BrandStyle.icon(category,dp(18),color),null,null,null);
+        iconBG.setCompoundDrawables(BrandStyle.icon(BrandStyle.soundIconForCategory(category),dp(18),color),null,null,null);
         TextView number=text(String.format(java.util.Locale.US,"%02d",clip.isPreset()?clip.preset+1:0),
             10,DIM,false);
         number.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
