@@ -82,7 +82,7 @@ final class SpeechEngine {
     static boolean saveCustom(Context c,String name,String source){
         if(name==null||name.trim().isEmpty()||source==null)return false;
         String id=null;
-        if(source.startsWith("SYSTEM  /  "))id=source.substring(10);
+        if(source.startsWith("SYSTEM  /  "))id=source.substring("SYSTEM  /  ".length());
         else if(source.startsWith("CUSTOM  /  "))id=saved(c).get(source);
         if(id==null||id.isEmpty())return false;
         try{
@@ -102,7 +102,7 @@ final class SpeechEngine {
         float pitch=voiceName.equals(FEMALE)?1.22f:.86f;
         if(voiceName.startsWith("SYSTEM  /  ")||voiceName.startsWith("CUSTOM  /  ")){
             String id=voiceName.startsWith("SYSTEM  /  ")
-                ?voiceName.substring(10):saved(c).get(voiceName);
+                ?voiceName.substring("SYSTEM  /  ".length()):saved(c).get(voiceName);
             if(id!=null){
                 try{
                     for(Voice voice:engine.getVoices()){
