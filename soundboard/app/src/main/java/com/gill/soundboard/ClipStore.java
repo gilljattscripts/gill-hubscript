@@ -9,24 +9,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 final class ClipStore {
-    static final String[] PRESETS = {
-        "BASS BOOM", "AIR HORN", "BONK", "BOING", "LASER", "ERROR", "SCRATCH", "GLITCH",
-        "DRAMATIC", "POP", "SIREN", "LEVEL UP", "FAIL", "PHONE RING", "SUSPENSE", "CARTOON ZIP",
-        "CHIRP", "METAL HIT", "REWIND", "WHOOSH", "ALARM", "ARCADE", "BEEP SPAM", "SPACE BLIP",
-        "RECORD STOP", "8-BIT HIT", "DARK PULSE", "CARTOON SLIDE", "RADIO STATIC", "BELL", "PING", "TRUMPET",
-        "BUBBLE", "BASS DROP", "UFO", "CLOCK TICK", "VHS GLITCH", "SMASH", "DIZZY", "SPARK",
-        "GAME OVER", "SUCCESS", "WARNING", "POWER UP", "SQUEAK", "SCREAM SYNTH", "KNOCK", "SCI-FI SHOT",
-        "BRUH BASS", "SHEESH WHISTLE", "CLOWN HONK", "RUBBER DUCK", "AWKWARD BUZZ", "VINE BOOM", "SNORT", "SPROING",
-        "ROUND LOST", "ROUND WON", "ITEM FOUND", "BOSS ARRIVES", "NOPE BUZZER", "CHECKPOINT", "HIT CONFIRM", "TIME OUT",
-        "JUMPSCARE", "CREEPY CHOIR", "GHOST SWOOSH", "HEARTBEAT", "DOOR CREAK", "DARK DRONE", "WHISPER SYNTH", "EVIL GIGGLE",
-        "DATA CRASH", "DIGITAL BURST", "MODEM BLIP", "CYBER SIREN", "STATIC SWEEP", "PIXEL BREAK", "ROBOT BLIP", "SIGNAL LOST",
-        "VICTORY FANFARE", "TENSION STING", "8BIT BOUNCE", "MYSTERY CHORD", "SAD TROMBONE", "RAPID DRUM", "BATTLE INTRO", "LAST SECOND",
-        "CHAOS HORN", "MIC DESTROYED", "MEGA BOOM", "HYPER BEEP", "WOBBLE BASS", "BRAIN FREEZE", "ALIEN SQUEAL", "OVERLOAD",
-        "SOFT BREATH", "NERVOUS GASP", "FAKE CHUCKLE", "THROAT CLEAR", "SHARP SIGH", "HMM VOICE", "HUH VOICE", "FAKE COUGH",
-        "KEYBOARD TAP", "RAPID TYPING", "MECHANICAL KEYS", "SPACEBAR", "MOUSE CLICK", "DOUBLE CLICK", "DESK THUMP", "HEADSET RUSTLE",
-        "UH OH VOICE", "SHORT LAUGH", "CONFUSED HUM", "YAWN FX", "ROBOT GASP", "VOICE CRACK", "CARTOON SNEEZE", "FAKE WHISPER",
-        "DISTORTED LAUGH", "GLITCH VOICE", "KEYBOARD RAGE", "LOUD EXHALE", "STREAM ALERT", "TAP STORM", "PUNCHLINE", "LAST STRAW"
-    };
+    // No fake, AI-generated or synthetic built-in audio. The user searches real clips online.
+    static final String[] PRESETS = {};
     static final class Clip {
         final int preset;
         final String name;
@@ -39,6 +23,8 @@ final class ClipStore {
     private static SharedPreferences prefs(Context c) {
         return c.getSharedPreferences("gill_soundboard",Context.MODE_PRIVATE);
     }
+    static boolean loop(Context c){return prefs(c).getBoolean("loop_mode",false);}
+    static void loop(Context c,boolean enabled){prefs(c).edit().putBoolean("loop_mode",enabled).apply();}
     static boolean chaos(Context c){return prefs(c).getBoolean("chaos_mode",false);}
     static void chaos(Context c,boolean value){prefs(c).edit().putBoolean("chaos_mode",value).apply();}
     static int volume(Context c){ return prefs(c).getInt("volume",75); }
@@ -63,6 +49,9 @@ final class ClipStore {
     static List<Clip> get(Context c) {
         ArrayList<Clip> result=new ArrayList<>();
         for(int i=0;i<PRESETS.length;i++)result.add(new Clip(i,PRESETS[i],null));
+        for(OnlineFavorites.Meme meme:OnlineFavorites.all(c)){
+            result.add(new Clip(-1,meme.name,meme.url));
+        }
         JSONArray array=imported(c);
         for(int i=0;i<array.length();i++){
             JSONObject object=array.optJSONObject(i);
