@@ -193,7 +193,7 @@ public final class MemeSearchActivity extends Activity {
         String source=fromEntities(html.replace("\\/","/"));
         Pattern expression=Pattern.compile(
             "(?:https?:)?//(?:www\\.)?myinstants\\.com/media/sounds/[A-Za-z0-9_%.\\-+/]+(?:mp3|wav|ogg)"+
-            "|/media/sounds/[A-Za-z0-9_%.\\-+/]+(?:mp3|wav|ogg)",Pattern.CASE_INSENSITIVE);
+            "|(?<![A-Za-z0-9./:])/media/sounds/[A-Za-z0-9_%.\\-+/]+(?:mp3|wav|ogg)",Pattern.CASE_INSENSITIVE);
         Matcher matcher=expression.matcher(source);
         while(matcher.find()&&sounds.size()<65){
             String path=matcher.group();
