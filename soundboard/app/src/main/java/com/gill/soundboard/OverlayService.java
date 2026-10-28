@@ -161,7 +161,7 @@ public final class OverlayService extends Service {
         LinearLayout.LayoutParams symbolParams=new LinearLayout.LayoutParams(dp(34),dp(34));
         symbolParams.rightMargin=dp(8);
         header.addView(symbol,symbolParams);
-        TextView grip=text("GILL / SOUND",13,BrandStyle.LAVENDER);
+        TextView grip=text("GILL / REAL MEMES",13,BrandStyle.LAVENDER);
         grip.setGravity(Gravity.CENTER_VERTICAL|Gravity.LEFT);
         grip.setTypeface(null,1);
         grip.setOnTouchListener(dragTouch(null));
@@ -236,6 +236,28 @@ public final class OverlayService extends Service {
         });
         gap(box,7);
 
+        TextView browser=button("SEARCH ACTUAL MEME SOUNDS");
+        browser.setTextColor(BrandStyle.LAVENDER);
+        browser.setCompoundDrawables(BrandStyle.icon(6,dp(17),BrandStyle.LAVENDER),null,null,null);
+        browser.setCompoundDrawablePadding(dp(8));
+        box.addView(browser,new LinearLayout.LayoutParams(-1,dp(38)));
+        browser.setOnClickListener(v->{
+            try{
+                Intent intent=new Intent(this,MemeSearchActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+            }catch(Exception ignored){}
+        });
+        gap(box,7);
+        TextView loop=button(ClipStore.loop(this)?"LOOP  /  ON":"LOOP  /  OFF");
+        loop.setTextColor(ClipStore.loop(this)?BrandStyle.GREEN:BrandStyle.LAVENDER);
+        box.addView(loop,new LinearLayout.LayoutParams(-1,dp(35)));
+        loop.setOnClickListener(v->{
+            AudioEngine.setLoop(this,!ClipStore.loop(this));
+            showFloating();
+        });
+        gap(box,8);
+
         ScrollView scroller=new ScrollView(this);
         scroller.setFillViewport(false);
         box.addView(scroller,new LinearLayout.LayoutParams(-1,dp(270)));
@@ -243,21 +265,13 @@ public final class OverlayService extends Service {
         clips.setOrientation(LinearLayout.VERTICAL);
         scroller.addView(clips);
         List<ClipStore.Clip> library=ClipStore.get(this);
-        final String[] categories={"LOUD / BASS","FUNNY / CARTOON","DRAMA / MEMES","ARCADE / RETRO",
-            "EFFECTS / SPACE","ALERTS / EXTRA","MEME REACTIONS","GAMING / FAILS",
-            "HORROR / HAUNTED","GLITCH / TECH","MUSIC / STINGS","CHAOS / TROLL",
-            "VOICE REACTIONS","KEYBOARD / DESK","VOICE / FUNNY","CHAOS / EXTRA"};
+        if(library.isEmpty()){
+            TextView empty=text("NO SAVED MEMES  /  USE SEARCH TO ADD REAL CLIPS",11,MUTED);
+            empty.setSingleLine(false);
+            empty.setPadding(dp(10),dp(20),dp(10),dp(20));
+            clips.addView(empty,new LinearLayout.LayoutParams(-1,-2));
+        }
         for(int i=0;i<library.size();i+=2){
-            if(i<ClipStore.PRESETS.length && i%8==0){
-                TextView section=text(categories[i/8],11,BrandStyle.LAVENDER);
-                section.setTypeface(null,1);
-                section.setGravity(Gravity.CENTER_VERTICAL|Gravity.LEFT);
-                section.setCompoundDrawables(BrandStyle.icon(BrandStyle.soundIconForCategory(i/8),dp(17),
-                    BrandStyle.categoryColor(i/8)),null,null,null);
-                section.setCompoundDrawablePadding(dp(9));
-                LinearLayout.LayoutParams sectionParams=new LinearLayout.LayoutParams(-1,dp(29));
-                clips.addView(section,sectionParams);
-            }
             LinearLayout row=new LinearLayout(this);
             LinearLayout.LayoutParams rowP=new LinearLayout.LayoutParams(-1,dp(48));
             rowP.bottomMargin=dp(5);
@@ -282,7 +296,7 @@ public final class OverlayService extends Service {
             }
         }
         gap(box,8);
-        TextView stop=button("STOP ALL SOUNDS");
+        TextView stop=button("STOP / CLEAR AUDIO");
         stop.setBackground(BrandStyle.bg(PANEL,dp(10),true));
         stop.setTextColor(BrandStyle.LAVENDER);
         stop.setCompoundDrawables(BrandStyle.icon(8,dp(16),BrandStyle.LAVENDER),null,null,null);
