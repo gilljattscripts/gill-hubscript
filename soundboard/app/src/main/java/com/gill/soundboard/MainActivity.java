@@ -266,6 +266,15 @@ public final class MainActivity extends Activity {
         TextView foot=text("ZIP imports save real audio offline. Online search needs internet. Android media audio cannot be routed directly to Roblox mic on every phone.",11,DIM,false);
         foot.setLineSpacing(dp(3),1f);
         root.addView(foot);
+        // Automatically install clips carried inside the finished, shareable APK.
+        PackBootstrap.schedule(this,()->{
+            if(isFinishing()||isDestroyed())return;
+            renderSounds();
+            try{
+                if(OverlayService.isRunning())
+                    startService(new Intent(this,OverlayService.class).setAction(OverlayService.REFRESH));
+            }catch(Exception ignored){}
+        });
     }
 
     private void renderChips(){
