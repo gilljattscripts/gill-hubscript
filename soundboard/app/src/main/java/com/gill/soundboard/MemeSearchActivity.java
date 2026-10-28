@@ -204,7 +204,7 @@ public final class MemeSearchActivity extends Activity {
             String page=SITE;
             int around=Math.max(0,matcher.start()-1700);
             String local=source.substring(around,matcher.start());
-            Pattern link=Pattern.compile("href=[\"']([^\\"']*/instant/[^\\"']+)[\"']",
+            Pattern link=Pattern.compile("/(?:en/)?instant/[a-zA-Z0-9._%/-]+",
                 Pattern.CASE_INSENSITIVE);
             Matcher lm=link.matcher(local);
             while(lm.find()){
