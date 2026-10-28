@@ -12,7 +12,7 @@ import numpy as np
 import sounddevice as sd
 from voice_fx import VoiceProcessor, VOICE_MODES
 from meme_browser import Meme, website_search, favorites, set_favorite, cached_audio, decode_pcm, SITE, youtube_search_link
-from meme_packs import import_pack, imported_sounds
+from meme_packs import import_pack, imported_sounds, auto_import_embedded
 
 QUICK_SEARCHES=["Gangnam Style","I hate this game","man screaming","rage scream","gen z meme",
                 "hindi meme","arey bhai","moye moye","bruh","goofy laugh","vine boom"]
@@ -142,6 +142,9 @@ class App(tk.Tk):
         self.geometry("1010x870")
         self.minsize(710,570)
         self.configure(bg=BG)
+        # Real recorded meme clips are packaged inside the shareable executable.
+        try:auto_import_embedded()
+        except Exception:pass
         try:
             icon=Path(sys._MEIPASS)/"gill_icon.ico" if getattr(sys,"frozen",False) else Path(__file__).resolve().parent/"gill_icon.ico"
             if icon.exists():self.iconbitmap(str(icon))
@@ -157,7 +160,7 @@ class App(tk.Tk):
         self.repeat_id=None
         self.repeat_task=None
         self.interval=tk.StringVar(value="130")
-        self.cat=tk.StringVar(value="SAVED FAVORITES")
+        self.cat=tk.StringVar(value="IMPORTED PACK" if imported_sounds() else "SAVED FAVORITES")
         self.search=tk.StringVar()
         self.current_results=[]
         self.loaded_samples={}
