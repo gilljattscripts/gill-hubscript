@@ -5,7 +5,8 @@ import threading
 import wave
 from pathlib import Path
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, simpledialog
+from tts_engine import DEFAULT_VOICES, custom_profiles, save_custom_profile, remove_custom_profile, synthesize, process_tts
 import numpy as np
 import sounddevice as sd
 from voice_fx import VoiceProcessor, VOICE_MODES
@@ -107,6 +108,16 @@ class Mixer:
             sound=self.chaos_samples[index] if self.chaos_mode else self.samples[index]
             self.voices.append([sound,0])
 
+    def play_audio(self,audio):
+        # The synthesized voice goes into the same live PortAudio output as your sounds.
+        if self.stream is None:return False
+        sample=np.asarray(audio,dtype=np.float32)
+        if sample.ndim!=2 or sample.shape[1]!=2 or len(sample)==0:return False
+        with self.lock:
+            while len(self.voices)>=self.maximum_voices:self.voices.pop(0)
+            self.voices.append([np.ascontiguousarray(sample),0])
+        return True
+
     def clear(self):
         with self.lock:self.voices.clear()
 
@@ -142,7 +153,7 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("GILL Soundboard")
-        self.geometry("930x785")
+        self.geometry("1010x870")
         self.minsize(710,570)
         self.configure(bg=BG)
         try:
@@ -151,6 +162,11 @@ class App(tk.Tk):
         except Exception:pass
         self.mixer=Mixer()
         self.voice_effect=tk.StringVar(value="CLEAN")
+        self.tts_voice=tk.StringVar(value="Male • Guy (neural)")
+        self.tts_status=tk.StringVar(value="READY TO SPEAK")
+        self.tts_voice_map=dict(DEFAULT_VOICES)
+        self.tts_voice_map.update(custom_profiles())
+        self.tts_busy=False
         self.repeat=False
         self.repeat_id=None
         self.repeat_task=None
@@ -254,6 +270,35 @@ class App(tk.Tk):
             "DEEP / CHIPMUNK / ROBOT / RADIO / CAVE / DEMON / DESTROYED MIC  •  Sound Chaos is separate from microphone FX.",
             9,DIM).pack(anchor="w",padx=12,pady=(1,12))
 
+        speech=tk.Frame(self,bg=PANEL,highlightbackground="#40334e",highlightthickness=1)
+        speech.pack(fill="x",padx=22,pady=(5,8))
+        speechhead=tk.Frame(speech,bg=PANEL)
+        speechhead.pack(fill="x",padx=12,pady=(10,4))
+        self.text(speechhead,"TYPE TO SPEAK",11,ORANGE,True).pack(side="left")
+        self.text(speechhead,"VOICE OUTPUT USES SAME VB-CABLE DEVICE",9,DIM).pack(side="right")
+        speakrow=tk.Frame(speech,bg=PANEL)
+        speakrow.pack(fill="x",padx=12,pady=(5,6))
+        self.speech_text=tk.Entry(speakrow,bg=CARD,fg=WHITE,insertbackground=WHITE,
+                                  relief="flat",font=("Segoe UI",11))
+        self.speech_text.pack(side="left",fill="x",expand=True,ipady=9)
+        self.speech_text.insert(0,"")
+        self.speech_text.bind("<Return>",lambda e:self.speak_typed())
+        self.speakbtn=self.button(speakrow,"SPEAK",self.speak_typed,True)
+        self.speakbtn.pack(side="left",padx=(8,0))
+        selectrow=tk.Frame(speech,bg=PANEL)
+        selectrow.pack(fill="x",padx=12,pady=(0,7))
+        self.text(selectrow,"VOICE",9,DIM,True).pack(side="left",padx=(0,7))
+        self.tts_combo=tk.ttk.Combobox(selectrow,state="readonly",width=25,
+            style="Gill.TCombobox",textvariable=self.tts_voice)
+        self.tts_combo.pack(side="left",padx=(0,7))
+        self.refresh_tts_choices()
+        self.button(selectrow,"+ CUSTOM VOICE",self.add_tts_voice).pack(side="left",padx=(0,5))
+        self.button(selectrow,"REMOVE CUSTOM",self.remove_tts_voice).pack(side="left",padx=(0,8))
+        self.text(selectrow,"NEURAL ONLINE / WINDOWS OFFLINE BACKUP",9,DIM).pack(side="left")
+        self.text(speech,"M/F neural voices when internet is available. Add custom voice IDs or select your installed Windows SAPI voice.",9,DIM).pack(anchor="w",padx=12,pady=(0,9))
+        self.tts_status_label=self.text(speech,"READY TO SPEAK",9,ORANGE)
+        self.tts_status_label.pack(anchor="w",padx=12,pady=(0,9))
+
         filterrow=tk.Frame(self,bg=BG);filterrow.pack(fill="x",padx=22,pady=(9,7))
         self.text(filterrow,"CATEGORY",9,ORANGE,True).pack(side="left",padx=(0,6))
         categories=tk.ttk.Combobox(filterrow,state="readonly",width=20,style="Gill.TCombobox",
@@ -340,6 +385,77 @@ class App(tk.Tk):
         self.cancel_spam()
         self.spambtn.configure(text="SPAM: ON" if self.repeat else "SPAM: OFF",
                                bg=ORANGE if self.repeat else CARD,fg=BG if self.repeat else WHITE)
+    def refresh_tts_choices(self):
+        self.tts_voice_map=dict(DEFAULT_VOICES)
+        self.tts_voice_map.update(custom_profiles())
+        if hasattr(self,"tts_combo"):
+            self.tts_combo["values"]=list(self.tts_voice_map.keys())
+        if self.tts_voice.get() not in self.tts_voice_map:
+            self.tts_voice.set(next(iter(self.tts_voice_map)))
+
+    def add_tts_voice(self):
+        name=simpledialog.askstring("Add custom voice","Display name for the custom voice:",parent=self)
+        if name is None:return
+        voice=simpledialog.askstring("Add custom voice",
+            "Microsoft neural voice ID (e.g. en-US-EricNeural) or SAPI:Installed voice name:",
+            parent=self)
+        if voice is None:return
+        try:
+            save_custom_profile(name,voice)
+            self.refresh_tts_choices()
+            self.tts_voice.set(name.strip()[:48])
+        except Exception as error:
+            messagebox.showerror("Custom voice",str(error))
+
+    def remove_tts_voice(self):
+        name=self.tts_voice.get()
+        if name in DEFAULT_VOICES:
+            messagebox.showinfo("Custom voices","The included voices are kept. Select a custom voice to remove.")
+            return
+        remove_custom_profile(name)
+        self.refresh_tts_choices()
+
+    def speak_typed(self):
+        if self.tts_busy:return
+        phrase=self.speech_text.get().strip()
+        if not phrase:return
+        if len(phrase)>350:
+            messagebox.showwarning("Text length","Please use at most 350 characters per message.")
+            return
+        if self.mixer.stream is None:
+            messagebox.showwarning("Audio output","Select an output device and press CONNECT first.")
+            return
+        voice_id=self.tts_voice_map.get(self.tts_voice.get(),"en-US-GuyNeural")
+        chaos=self.mixer.chaos_mode
+        voice_fx_mode=self.voice_effect.get()
+        voice_strength=self.mixer.voice_strength
+        self.tts_busy=True
+        self.speakbtn.configure(state="disabled")
+        self.tts_status_label.configure(text="GENERATING VOICE...",fg=ORANGE)
+        def synth_worker():
+            try:
+                audio,neural=synthesize(phrase,voice_id)
+                wave=process_tts(audio,chaos,voice_fx_mode,voice_strength)
+                def completed():
+                    self.tts_busy=False
+                    self.speakbtn.configure(state="normal")
+                    played=self.mixer.play_audio(wave)
+                    self.tts_status_label.configure(
+                        text=("SPEAKING • NEURAL" if neural else "SPEAKING • WINDOWS VOICE")
+                            if played else "OUTPUT DISCONNECTED",
+                        fg="#70e1a2" if played else "#ff928d")
+                self.after(0,completed)
+            except Exception as err:
+                msg=str(err)
+                def failed():
+                    self.tts_busy=False
+                    self.speakbtn.configure(state="normal")
+                    self.tts_status_label.configure(text="VOICE ERROR",fg="#ff928d")
+                    messagebox.showerror("Type to Speak",msg)
+                try:self.after(0,failed)
+                except Exception:pass
+        threading.Thread(target=synth_worker,daemon=True).start()
+
     def update_voice_fx(self,event=None):
         self.mixer.voice_mode=self.voice_effect.get()
         if self.mixer.voice_mode!="CLEAN" and self.mic.current()==0:
