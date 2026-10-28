@@ -15,7 +15,13 @@ final class ClipStore {
         "CHIRP", "METAL HIT", "REWIND", "WHOOSH", "ALARM", "ARCADE", "BEEP SPAM", "SPACE BLIP",
         "RECORD STOP", "8-BIT HIT", "DARK PULSE", "CARTOON SLIDE", "RADIO STATIC", "BELL", "PING", "TRUMPET",
         "BUBBLE", "BASS DROP", "UFO", "CLOCK TICK", "VHS GLITCH", "SMASH", "DIZZY", "SPARK",
-        "GAME OVER", "SUCCESS", "WARNING", "POWER UP", "SQUEAK", "SCREAM SYNTH", "KNOCK", "SCI-FI SHOT"
+        "GAME OVER", "SUCCESS", "WARNING", "POWER UP", "SQUEAK", "SCREAM SYNTH", "KNOCK", "SCI-FI SHOT",
+        "BRUH BASS", "SHEESH WHISTLE", "CLOWN HONK", "RUBBER DUCK", "AWKWARD BUZZ", "VINE BOOM", "SNORT", "SPROING",
+        "ROUND LOST", "ROUND WON", "ITEM FOUND", "BOSS ARRIVES", "NOPE BUZZER", "CHECKPOINT", "HIT CONFIRM", "TIME OUT",
+        "JUMPSCARE", "CREEPY CHOIR", "GHOST SWOOSH", "HEARTBEAT", "DOOR CREAK", "DARK DRONE", "WHISPER SYNTH", "EVIL GIGGLE",
+        "DATA CRASH", "DIGITAL BURST", "MODEM BLIP", "CYBER SIREN", "STATIC SWEEP", "PIXEL BREAK", "ROBOT BLIP", "SIGNAL LOST",
+        "VICTORY FANFARE", "TENSION STING", "8BIT BOUNCE", "MYSTERY CHORD", "SAD TROMBONE", "RAPID DRUM", "BATTLE INTRO", "LAST SECOND",
+        "CHAOS HORN", "MIC DESTROYED", "MEGA BOOM", "HYPER BEEP", "WOBBLE BASS", "BRAIN FREEZE", "ALIEN SQUEAL", "OVERLOAD"
     };
     static final class Clip {
         final int preset;
@@ -29,7 +35,9 @@ final class ClipStore {
     private static SharedPreferences prefs(Context c) {
         return c.getSharedPreferences("gill_soundboard",Context.MODE_PRIVATE);
     }
-    static int volume(Context c){ return prefs(c).getInt("volume",85); }
+    static boolean chaos(Context c){return prefs(c).getBoolean("chaos_mode",false);}
+    static void chaos(Context c,boolean value){prefs(c).edit().putBoolean("chaos_mode",value).apply();}
+    static int volume(Context c){ return prefs(c).getInt("volume",75); }
     static void volume(Context c,int value){
         prefs(c).edit().putInt("volume",Math.max(0,Math.min(100,value))).apply();
     }
