@@ -31,7 +31,8 @@ import java.util.List;
 
 public final class MainActivity extends Activity {
     private static final int PICK_AUDIO=41;
-    private static final String[] GROUP_NAMES={"ALL","BASS","FUNNY","DRAMA","ARCADE","EFFECTS","ALERTS","CUSTOM"};
+    private static final String[] GROUP_NAMES={"ALL","BASS","FUNNY","DRAMA","ARCADE","EFFECTS","ALERTS",
+        "REACTIONS","GAMING","HORROR","GLITCH","MUSIC","CHAOS","CUSTOM"};
     private boolean openAfterPermission=false;
     private LinearLayout soundGrid;
     private LinearLayout chipRow;
@@ -100,7 +101,7 @@ public final class MainActivity extends Activity {
         title.setLetterSpacing(.025f);
         brandText.addView(title);
         space(brandText,2);
-        TextView sub=text("INSTANT PLAYBACK  /  48 SOUNDS",10,BrandStyle.LAVENDER,true);
+        TextView sub=text("INSTANT PLAYBACK  /  96 SOUNDS",10,BrandStyle.LAVENDER,true);
         sub.setLetterSpacing(.06f);
         brandText.addView(sub);
         space(root,21);
@@ -125,7 +126,7 @@ public final class MainActivity extends Activity {
         TextView intro=text("Sound on demand.",21,WHITE,true);
         hero.addView(intro);
         space(hero,4);
-        TextView caption=text("Tap instantly. Hold to repeat in spam mode. No downloads, no setup.",12,DIM,false);
+        TextView caption=text("96 ready-to-play effects. Tap instantly, use hold-to-spam, or turn on destroyed-mic effects.",12,DIM,false);
         caption.setLineSpacing(dp(3),1f);
         hero.addView(caption);
         space(hero,16);
@@ -139,6 +140,20 @@ public final class MainActivity extends Activity {
             startService(new Intent(this,OverlayService.class).setAction(OverlayService.STOP));
             overlayStatus.setText("Floating panel closed.");
         });
+        space(hero,9);
+        TextView chaos=button(ClipStore.chaos(this)?"DESTROYED MIC  /  ON":"DESTROYED MIC  /  OFF",false,2);
+        chaos.setTextColor(ClipStore.chaos(this)?BrandStyle.GREEN:WHITE);
+        hero.addView(chaos,new LinearLayout.LayoutParams(-1,dp(44)));
+        chaos.setOnClickListener(v->{
+            boolean enabled=!ClipStore.chaos(this);
+            ClipStore.chaos(this,enabled);
+            chaos.setText(enabled?"DESTROYED MIC  /  ON":"DESTROYED MIC  /  OFF");
+            chaos.setTextColor(enabled?BrandStyle.GREEN:WHITE);
+        });
+        space(hero,7);
+        TextView caution=text("CHAOS MODE  /  Intentionally crunchy built-in clips, with a capped output level. Windows has live voice effects too.",11,DIM,false);
+        caution.setLineSpacing(dp(2),1f);
+        hero.addView(caution);
         space(hero,12);
         overlayStatus=text("Enable “Display over other apps” on first launch.",11,DIM,false);
         hero.addView(overlayStatus);
@@ -149,7 +164,7 @@ public final class MainActivity extends Activity {
         root.addView(line);
         TextView libraryTitle=text("SOUND LIBRARY",17,WHITE,true);
         line.addView(libraryTitle,new LinearLayout.LayoutParams(0,-2,1));
-        TextView included=text("48 INCLUDED",10,BrandStyle.LAVENDER,true);
+        TextView included=text("96 INCLUDED",10,BrandStyle.LAVENDER,true);
         line.addView(included);
         space(root,12);
 
@@ -250,11 +265,11 @@ public final class MainActivity extends Activity {
         }
     }
     private boolean visibleClip(ClipStore.Clip clip){
-        if(selectedGroup==7 && clip.isPreset())return false;
-        if(selectedGroup>=1 && selectedGroup<=6 &&
+        if(selectedGroup==13 && clip.isPreset())return false;
+        if(selectedGroup>=1 && selectedGroup<=12 &&
             (!clip.isPreset() || clip.preset/8!=selectedGroup-1))return false;
-        if(selectedGroup==0 || selectedGroup==7 ||
-            (selectedGroup>=1 && selectedGroup<=6)){
+        if(selectedGroup==0 || selectedGroup==13 ||
+            (selectedGroup>=1 && selectedGroup<=12)){
             return clip.name.toLowerCase(java.util.Locale.ROOT).contains(query);
         }
         return true;
