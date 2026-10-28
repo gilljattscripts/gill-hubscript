@@ -31,6 +31,7 @@ import java.util.List;
 
 public final class MainActivity extends Activity {
     private static final int PICK_AUDIO=41;
+    private static final int PICK_PACK=42;
     private static final String[] GROUP_NAMES={"ALL","★ SAVED MEMES","MY CLIPS"};
     private boolean openAfterPermission=false;
     private LinearLayout soundGrid;
@@ -172,7 +173,7 @@ public final class MainActivity extends Activity {
         root.addView(line);
         TextView libraryTitle=text("SOUND LIBRARY",17,WHITE,true);
         line.addView(libraryTitle,new LinearLayout.LayoutParams(0,-2,1));
-        TextView included=text("SAVED + IMPORTED",10,BrandStyle.LAVENDER,true);
+        TextView included=text("REAL CLIPS",10,BrandStyle.LAVENDER,true);
         line.addView(included);
         space(root,12);
 
@@ -254,11 +255,15 @@ public final class MainActivity extends Activity {
         mute.setOnClickListener(v->AudioEngine.stop());
         space(root,16);
 
-        TextView add=button("OPTIONAL  /  IMPORT YOUR OWN CLIPS",false,6);
+        TextView importPack=button("IMPORT GILL MEME ZIP  /  ONE TAP",true,6);
+        root.addView(importPack,new LinearLayout.LayoutParams(-1,dp(49)));
+        importPack.setOnClickListener(v->pickPack());
+        space(root,9);
+        TextView add=button("OPTIONAL  /  IMPORT SINGLE MP3 FILES",false,6);
         root.addView(add,new LinearLayout.LayoutParams(-1,dp(45)));
         add.setOnClickListener(v->pickFiles());
         space(root,15);
-        TextView foot=text("Online search needs internet. Saved links are not bundled recordings. Android outputs media sound, not virtual Roblox microphone audio.",11,DIM,false);
+        TextView foot=text("ZIP imports save real audio offline. Online search needs internet. Android media audio cannot be routed directly to Roblox mic on every phone.",11,DIM,false);
         foot.setLineSpacing(dp(3),1f);
         root.addView(foot);
     }
@@ -355,7 +360,7 @@ public final class MainActivity extends Activity {
             }
         }
         if(selected.isEmpty()){
-            TextView none=text("No saved memes here. Tap SEARCH ONLINE to find real clips and ★ save your favorites.",13,DIM,false);
+            TextView none=text("No sounds here. Import GILL-Memes-Cleaned.zip or search online and save your favorites.",13,DIM,false);
             none.setPadding(dp(8),dp(15),dp(8),dp(15));
             soundGrid.addView(none);
         }
@@ -383,6 +388,15 @@ public final class MainActivity extends Activity {
             startPanel();
         }
     }
+    private void pickPack(){
+        Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("*/*");
+        intent.putExtra(Intent.EXTRA_MIME_TYPES,new String[]{
+            "application/zip","application/x-zip-compressed","application/octet-stream"
+        });
+        startActivityForResult(intent,PICK_PACK);
+    }
     private void pickFiles(){
         Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
@@ -392,6 +406,27 @@ public final class MainActivity extends Activity {
     }
     @Override protected void onActivityResult(int request,int result,Intent data){
         super.onActivityResult(request,result,data);
+        if(request==PICK_PACK && result==RESULT_OK && data!=null && data.getData()!=null){
+            Uri archive=data.getData();
+            Toast.makeText(this,"Importing original meme recordings...",Toast.LENGTH_SHORT).show();
+            new Thread(()->{
+                try{
+                    int count=ZipPackImporter.importPack(getApplicationContext(),archive);
+                    runOnUiThread(()->{
+                        renderSounds();
+                        if(OverlayService.isRunning())
+                            startService(new Intent(this,OverlayService.class).setAction(OverlayService.REFRESH));
+                        Toast.makeText(this,count+" original clips added. Ready to play offline!",
+                            Toast.LENGTH_LONG).show();
+                    });
+                }catch(Exception error){
+                    String detail=error.getMessage()==null?"Invalid ZIP":error.getMessage();
+                    runOnUiThread(()->Toast.makeText(this,
+                        "ZIP import failed: "+detail,Toast.LENGTH_LONG).show());
+                }
+            },"GillZipImport").start();
+            return;
+        }
         if(request!=PICK_AUDIO||result!=RESULT_OK||data==null)return;
         int added=0;
         ClipData multiple=data.getClipData();
