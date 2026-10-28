@@ -38,6 +38,10 @@ final class BrandStyle {
     static int categoryOf(ClipStore.Clip clip){
         return clip.isPreset()?Math.min(11,clip.preset/8):12;
     }
+    static int soundIconForCategory(int category){
+        final int[] icons={0,1,2,3,4,5,1,3,2,4,6,5,6};
+        return icons[Math.max(0,Math.min(category,icons.length-1))];
+    }
     static GradientDrawable bg(int color,int radiusPx,boolean outline){
         GradientDrawable d=new GradientDrawable();
         d.setColor(color);
