@@ -211,6 +211,19 @@ public final class OverlayService extends Service {
             showFloating();
         });
         gap(box,7);
+        TextView typeToSpeak=button("TYPE TO SPEAK   /   VOICES");
+        typeToSpeak.setTextColor(BrandStyle.LAVENDER);
+        typeToSpeak.setCompoundDrawables(BrandStyle.icon(6,dp(17),BrandStyle.LAVENDER),null,null,null);
+        typeToSpeak.setCompoundDrawablePadding(dp(7));
+        box.addView(typeToSpeak,new LinearLayout.LayoutParams(-1,dp(38)));
+        typeToSpeak.setOnClickListener(v->{
+            try{
+                Intent speech=new Intent(this,SpeechActivity.class);
+                speech.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(speech);
+            }catch(Exception ignored){}
+        });
+        gap(box,7);
         TextView chaos=button(ClipStore.chaos(this)?"DESTROYED MIC FX   /   ON":"DESTROYED MIC FX   /   OFF");
         chaos.setTextColor(ClipStore.chaos(this)?BrandStyle.GREEN:BrandStyle.LAVENDER);
         chaos.setCompoundDrawables(BrandStyle.icon(2,dp(16),
@@ -232,7 +245,8 @@ public final class OverlayService extends Service {
         List<ClipStore.Clip> library=ClipStore.get(this);
         final String[] categories={"LOUD / BASS","FUNNY / CARTOON","DRAMA / MEMES","ARCADE / RETRO",
             "EFFECTS / SPACE","ALERTS / EXTRA","MEME REACTIONS","GAMING / FAILS",
-            "HORROR / HAUNTED","GLITCH / TECH","MUSIC / STINGS","CHAOS / TROLL"};
+            "HORROR / HAUNTED","GLITCH / TECH","MUSIC / STINGS","CHAOS / TROLL",
+            "VOICE REACTIONS","KEYBOARD / DESK","VOICE / FUNNY","CHAOS / EXTRA"};
         for(int i=0;i<library.size();i+=2){
             if(i<ClipStore.PRESETS.length && i%8==0){
                 TextView section=text(categories[i/8],11,BrandStyle.LAVENDER);
