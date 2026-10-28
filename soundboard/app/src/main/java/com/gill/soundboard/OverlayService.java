@@ -21,6 +21,7 @@ import android.view.View;
 import android.view.WindowManager;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
+import android.widget.ImageView;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import java.util.List;
@@ -40,19 +41,19 @@ public final class OverlayService extends Service {
     private int spamIntervalMs=150;
     private final Handler spamHandler=new Handler(Looper.getMainLooper());
     private Runnable activeSpam;
-    private static final int DARK=Color.rgb(16,17,23);
-    private static final int PANEL=Color.rgb(27,29,38);
-    private static final int TILE=Color.rgb(47,48,61);
-    private static final int ORANGE=Color.rgb(255,124,48);
-    private static final int LIGHT=Color.rgb(243,244,248);
-    private static final int MUTED=Color.rgb(175,180,190);
+    private static final int DARK=BrandStyle.BG;
+    private static final int PANEL=BrandStyle.PANEL;
+    private static final int TILE=BrandStyle.CARD;
+    private static final int ORANGE=BrandStyle.PURPLE;
+    private static final int LIGHT=BrandStyle.WHITE;
+    private static final int MUTED=BrandStyle.DIM;
 
     private int dp(float v){return Math.round(v*getResources().getDisplayMetrics().density);}
     private GradientDrawable rounded(int color,int radius,boolean border){
         GradientDrawable g=new GradientDrawable();
         g.setColor(color);
         g.setCornerRadius(dp(radius));
-        if(border)g.setStroke(dp(1),ORANGE);
+        if(border)g.setStroke(dp(1),BrandStyle.BORDER);
         return g;
     }
     private TextView text(String s,int size,int color){
@@ -68,7 +69,7 @@ public final class OverlayService extends Service {
     private TextView button(String s){
         TextView b=text(s,11,LIGHT);
         b.setPadding(dp(5),dp(7),dp(5),dp(7));
-        b.setBackground(rounded(TILE,8,false));
+        b.setBackground(BrandStyle.bg(TILE,dp(9),true));
         b.setClickable(true);
         return b;
     }
@@ -85,7 +86,7 @@ public final class OverlayService extends Service {
         Intent stop=new Intent(this,OverlayService.class).setAction(STOP);
         PendingIntent close=PendingIntent.getService(this,2,stop,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
         Notification notification=new Notification.Builder(this,CHANNEL)
-            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setSmallIcon(R.drawable.gill_notification)
             .setContentTitle("GILL Soundboard")
             .setContentText("Floating soundboard active")
             .setContentIntent(open)
@@ -115,7 +116,7 @@ public final class OverlayService extends Service {
         }
         float scale=ClipStore.size(this);
         params=new WindowManager.LayoutParams(
-            dp((expanded?310:154)*scale),
+            dp((expanded?324:154)*scale),
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE |
@@ -130,10 +131,13 @@ public final class OverlayService extends Service {
     }
 
     private void makeMinimized(){
-        TextView pill=text("GILL   |   SOUNDS",13,LIGHT);
+        TextView pill=text("GILL  /  SOUNDS",12,LIGHT);
         pill.setTypeface(null,1);
-        pill.setPadding(dp(10),dp(12),dp(10),dp(12));
-        pill.setBackground(rounded(DARK,12,true));
+        pill.setPadding(dp(9),dp(12),dp(8),dp(12));
+        pill.setBackground(BrandStyle.accent(dp(13)));
+        pill.setTextColor(DARK);
+        pill.setCompoundDrawables(BrandStyle.icon(0,dp(17),DARK),null,null,null);
+        pill.setCompoundDrawablePadding(dp(8));
         pill.setOnTouchListener(dragTouch(()->{
             expanded=true;showFloating();
         }));
@@ -143,15 +147,21 @@ public final class OverlayService extends Service {
     private void makeExpanded(){
         LinearLayout box=new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
-        box.setPadding(dp(8),dp(9),dp(8),dp(9));
-        box.setBackground(rounded(DARK,14,true));
+        box.setPadding(dp(10),dp(11),dp(10),dp(12));
+        box.setBackground(BrandStyle.bg(DARK,dp(17),true));
         box.setElevation(dp(9));
         floating=box;
 
         LinearLayout header=new LinearLayout(this);
         header.setGravity(Gravity.CENTER_VERTICAL);
-        box.addView(header,new LinearLayout.LayoutParams(-1,dp(35)));
-        TextView grip=text("GILL / SOUNDBOARD",13,ORANGE);
+        box.addView(header,new LinearLayout.LayoutParams(-1,dp(42)));
+        ImageView symbol=new ImageView(this);
+        symbol.setImageResource(R.drawable.gill_logo);
+        symbol.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        LinearLayout.LayoutParams symbolParams=new LinearLayout.LayoutParams(dp(34),dp(34));
+        symbolParams.rightMargin=dp(8);
+        header.addView(symbol,symbolParams);
+        TextView grip=text("GILL / SOUND",13,BrandStyle.LAVENDER);
         grip.setGravity(Gravity.CENTER_VERTICAL|Gravity.LEFT);
         grip.setTypeface(null,1);
         grip.setOnTouchListener(dragTouch(null));
@@ -170,6 +180,8 @@ public final class OverlayService extends Service {
         box.addView(tools,new LinearLayout.LayoutParams(-1,dp(31)));
         String lockText=ClipStore.locked(this)?"UNLOCK":"LOCK";
         TextView lock=button(lockText);
+        lock.setCompoundDrawables(BrandStyle.icon(9,dp(14),BrandStyle.LAVENDER),null,null,null);
+        lock.setCompoundDrawablePadding(dp(4));
         tools.addView(lock,new LinearLayout.LayoutParams(0,-1,1));
         lock.setOnClickListener(v->{ClipStore.locked(this,!ClipStore.locked(this));showFloating();});
         TextView smaller=button("SIZE −");
@@ -183,8 +195,11 @@ public final class OverlayService extends Service {
         gap(box,7);
         LinearLayout spamRow=new LinearLayout(this);
         box.addView(spamRow,new LinearLayout.LayoutParams(-1,dp(33)));
-        TextView spamToggle=button(spamMode?"HOLD SPAM: ON":"HOLD SPAM: OFF");
-        spamToggle.setTextColor(spamMode?ORANGE:LIGHT);
+        TextView spamToggle=button(spamMode?"SPAM  /  ON":"SPAM  /  OFF");
+        spamToggle.setTextColor(spamMode?DARK:LIGHT);
+        spamToggle.setBackground(spamMode?BrandStyle.accent(dp(9)):BrandStyle.bg(TILE,dp(9),true));
+        spamToggle.setCompoundDrawables(BrandStyle.icon(11,dp(16),spamMode?DARK:BrandStyle.LAVENDER),null,null,null);
+        spamToggle.setCompoundDrawablePadding(dp(6));
         spamRow.addView(spamToggle,new LinearLayout.LayoutParams(0,-1,2));
         spamToggle.setOnClickListener(v->{stopSpam();spamMode=!spamMode;showFloating();});
         TextView spamRate=button("RATE "+spamIntervalMs+"ms");
@@ -207,18 +222,28 @@ public final class OverlayService extends Service {
         final String[] categories={"LOUD / BASS","FUNNY / CARTOON","DRAMA / MEMES","ARCADE / RETRO","EFFECTS / SPACE","ALERTS / EXTRA"};
         for(int i=0;i<library.size();i+=2){
             if(i<ClipStore.PRESETS.length && i%8==0){
-                TextView section=text(categories[i/8],11,ORANGE);
+                TextView section=text(categories[i/8],11,BrandStyle.LAVENDER);
+                section.setTypeface(null,1);
                 section.setGravity(Gravity.CENTER_VERTICAL|Gravity.LEFT);
+                section.setCompoundDrawables(BrandStyle.icon(i/8,dp(17),
+                    BrandStyle.categoryColor(i/8)),null,null,null);
+                section.setCompoundDrawablePadding(dp(9));
                 LinearLayout.LayoutParams sectionParams=new LinearLayout.LayoutParams(-1,dp(29));
                 clips.addView(section,sectionParams);
             }
             LinearLayout row=new LinearLayout(this);
-            LinearLayout.LayoutParams rowP=new LinearLayout.LayoutParams(-1,dp(43));
+            LinearLayout.LayoutParams rowP=new LinearLayout.LayoutParams(-1,dp(48));
             rowP.bottomMargin=dp(5);
             clips.addView(row,rowP);
             for(int k=i;k<Math.min(library.size(),i+2);k++){
                 ClipStore.Clip clip=library.get(k);
                 TextView b=button(clip.name);
+                final int group=BrandStyle.categoryOf(clip);
+                b.setTextSize(10);
+                b.setPadding(dp(7),dp(6),dp(5),dp(6));
+                b.setCompoundDrawables(BrandStyle.icon(group,dp(16),
+                    BrandStyle.categoryColor(group)),null,null,null);
+                b.setCompoundDrawablePadding(dp(5));
                 LinearLayout.LayoutParams tile=new LinearLayout.LayoutParams(0,-1,1);
                 if(k%2==1)tile.leftMargin=dp(5);
                 row.addView(b,tile);
@@ -230,12 +255,15 @@ public final class OverlayService extends Service {
             }
         }
         gap(box,8);
-        TextView stop=button("STOP SOUND");
-        stop.setTextColor(ORANGE);
+        TextView stop=button("STOP ALL SOUNDS");
+        stop.setBackground(BrandStyle.bg(PANEL,dp(10),true));
+        stop.setTextColor(BrandStyle.LAVENDER);
+        stop.setCompoundDrawables(BrandStyle.icon(8,dp(16),BrandStyle.LAVENDER),null,null,null);
+        stop.setCompoundDrawablePadding(dp(6));
         box.addView(stop,new LinearLayout.LayoutParams(-1,dp(36)));
         stop.setOnClickListener(v->AudioEngine.stop());
         gap(box,6);
-        TextView hint=text(ClipStore.locked(this)?"POSITION LOCKED":"HOLD TITLE TO MOVE",10,MUTED);
+        TextView hint=text(ClipStore.locked(this)?"POSITION LOCKED":"DRAG TITLE TO MOVE  /  HOLD SOUND TO REPEAT",9,MUTED);
         box.addView(hint,new LinearLayout.LayoutParams(-1,dp(20)));
     }
 
