@@ -30,6 +30,8 @@ jobs:
           echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0"
+      - name: Generate high quality built-in sounds
+        run: python3 soundboard/tools/generate_sounds.py android
       - name: Compile the Android app
         working-directory: soundboard
         run: gradle --no-daemon :app:assembleDebug
