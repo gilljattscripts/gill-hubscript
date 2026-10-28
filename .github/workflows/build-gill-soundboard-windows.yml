@@ -1,0 +1,36 @@
+name: Build GILL Soundboard Windows EXE
+on:
+  push:
+    paths:
+      - 'soundboard/windows/**'
+      - 'soundboard/tools/generate_sounds.py'
+      - '.github/workflows/build-gill-soundboard-windows.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Generate original 48 kHz stereo sound library
+        run: python soundboard/tools/generate_sounds.py windows
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip numpy sounddevice pyinstaller
+      - name: Build standalone Windows EXE
+        run: pyinstaller --noconfirm --clean --onefile --windowed --name GILL-Soundboard --add-data "soundboard/windows/assets;assets" --collect-all _sounddevice_data soundboard/windows/gill_soundboard.py
+      - name: Upload Windows app
+        uses: actions/upload-artifact@v4
+        with:
+          name: GILL-Soundboard-Windows
+          path: dist/GILL-Soundboard.exe
+          if-no-files-found: error
+          retention-days: 30
