@@ -31,9 +31,7 @@ import java.util.List;
 
 public final class MainActivity extends Activity {
     private static final int PICK_AUDIO=41;
-    private static final String[] GROUP_NAMES={"ALL","BASS","FUNNY","DRAMA","ARCADE","EFFECTS","ALERTS",
-        "REACTIONS","GAMING","HORROR","GLITCH","MUSIC","CHAOS",
-        "VOICES","KEYBOARD","VOICE FX","EXTRAS","CUSTOM"};
+    private static final String[] GROUP_NAMES={"ALL","★ SAVED MEMES","MY CLIPS"};
     private boolean openAfterPermission=false;
     private LinearLayout soundGrid;
     private LinearLayout chipRow;
@@ -103,7 +101,7 @@ public final class MainActivity extends Activity {
         title.setLetterSpacing(.025f);
         brandText.addView(title);
         space(brandText,2);
-        TextView sub=text("INSTANT PLAYBACK  /  128 SOUNDS",10,BrandStyle.LAVENDER,true);
+        TextView sub=text("REAL MEMES  /  SEARCH & PLAY",10,BrandStyle.LAVENDER,true);
         sub.setLetterSpacing(.06f);
         brandText.addView(sub);
         space(root,21);
@@ -116,7 +114,7 @@ public final class MainActivity extends Activity {
         LinearLayout badges=new LinearLayout(this);
         badges.setGravity(Gravity.CENTER_VERTICAL);
         hero.addView(badges);
-        TextView badge=text("●  READY TO PLAY",10,BrandStyle.GREEN,true);
+        TextView badge=text("●  ONLINE MEME SEARCH",10,BrandStyle.GREEN,true);
         badge.setPadding(dp(9),dp(6),dp(9),dp(6));
         badge.setBackground(BrandStyle.bg(0xff20372f,dp(20),false));
         badges.addView(badge);
@@ -128,11 +126,15 @@ public final class MainActivity extends Activity {
         TextView intro=text("Sound on demand.",21,WHITE,true);
         hero.addView(intro);
         space(hero,4);
-        TextView caption=text("128 ready-to-play effects, keyboard sounds and voice reactions. Spam instantly or try Destroyed Mic FX.",12,DIM,false);
+        TextView caption=text("No fake effects. Search real meme recordings, save favorites, loop clips, and play them from the floating panel.",12,DIM,false);
         caption.setLineSpacing(dp(3),1f);
         hero.addView(caption);
         space(hero,16);
-        TextView start=button("OPEN FLOATING PANEL",true,7);
+        TextView browse=button("SEARCH REAL MEME SOUNDS",true,6);
+        hero.addView(browse,new LinearLayout.LayoutParams(-1,dp(49)));
+        browse.setOnClickListener(v->openSearch(""));
+        space(hero,9);
+        TextView start=button("OPEN FLOATING PANEL",false,7);
         hero.addView(start,new LinearLayout.LayoutParams(-1,dp(51)));
         start.setOnClickListener(v->startPanel());
         space(hero,9);
@@ -157,7 +159,7 @@ public final class MainActivity extends Activity {
         hero.addView(typed,new LinearLayout.LayoutParams(-1,dp(48)));
         typed.setOnClickListener(v->startActivity(new Intent(this,SpeechActivity.class)));
         space(hero,7);
-        TextView caution=text("CHAOS MODE  /  Intentionally crunchy built-in clips, with a capped output level. Windows has live voice effects too.",11,DIM,false);
+        TextView caution=text("CHAOS MODE applies distortion only to your chosen clips on Windows. Android does not alter live Roblox microphone audio.",11,DIM,false);
         caution.setLineSpacing(dp(2),1f);
         hero.addView(caution);
         space(hero,12);
@@ -170,7 +172,7 @@ public final class MainActivity extends Activity {
         root.addView(line);
         TextView libraryTitle=text("SOUND LIBRARY",17,WHITE,true);
         line.addView(libraryTitle,new LinearLayout.LayoutParams(0,-2,1));
-        TextView included=text("128 INCLUDED",10,BrandStyle.LAVENDER,true);
+        TextView included=text("SAVED + IMPORTED",10,BrandStyle.LAVENDER,true);
         line.addView(included);
         space(root,12);
 
@@ -186,7 +188,7 @@ public final class MainActivity extends Activity {
         search.setTextSize(13);
         search.setTextColor(WHITE);
         search.setHintTextColor(DIM);
-        search.setHint("Search sounds...");
+        search.setHint("Search your saved sounds...");
         search.setBackgroundColor(Color.TRANSPARENT);
         search.setPadding(dp(8),0,0,0);
         searchWrap.addView(search,new LinearLayout.LayoutParams(0,-1,1));
@@ -198,7 +200,11 @@ public final class MainActivity extends Activity {
             }
             @Override public void afterTextChanged(Editable s){}
         });
-        space(root,12);
+        space(root,9);
+        TextView online=button("SEARCH ONLINE  /  GEN Z • SCREAMS • HINDI",true,6);
+        root.addView(online,new LinearLayout.LayoutParams(-1,dp(44)));
+        online.setOnClickListener(v->openSearch(query));
+        space(root,13);
 
         HorizontalScrollView chips=new HorizontalScrollView(this);
         chips.setHorizontalScrollBarEnabled(false);
@@ -235,6 +241,14 @@ public final class MainActivity extends Activity {
             @Override public void onStartTrackingTouch(SeekBar s){}
             @Override public void onStopTrackingTouch(SeekBar s){}
         });
+        TextView loop=button(ClipStore.loop(this)?"LOOP CLIPS  /  ON":"LOOP CLIPS  /  OFF",false,11);
+        volumeCard.addView(loop,new LinearLayout.LayoutParams(-1,dp(43)));
+        loop.setOnClickListener(v->{
+            boolean enabled=!ClipStore.loop(this);
+            AudioEngine.setLoop(this,enabled);
+            loop.setText(enabled?"LOOP CLIPS  /  ON":"LOOP CLIPS  /  OFF");
+        });
+        space(volumeCard,7);
         TextView mute=button("STOP ALL AUDIO",false,8);
         volumeCard.addView(mute,new LinearLayout.LayoutParams(-1,dp(44)));
         mute.setOnClickListener(v->AudioEngine.stop());
@@ -244,7 +258,7 @@ public final class MainActivity extends Activity {
         root.addView(add,new LinearLayout.LayoutParams(-1,dp(45)));
         add.setOnClickListener(v->pickFiles());
         space(root,15);
-        TextView foot=text("Made for fast, ad-free playback. Android routes sounds as media audio; Roblox microphone transmission depends on the device.",11,DIM,false);
+        TextView foot=text("Online search needs internet. Saved links are not bundled recordings. Android outputs media sound, not virtual Roblox microphone audio.",11,DIM,false);
         foot.setLineSpacing(dp(3),1f);
         root.addView(foot);
     }
@@ -271,14 +285,18 @@ public final class MainActivity extends Activity {
         }
     }
     private boolean visibleClip(ClipStore.Clip clip){
-        if(selectedGroup==17 && clip.isPreset())return false;
-        if(selectedGroup>=1 && selectedGroup<=16 &&
-            (!clip.isPreset() || clip.preset/8!=selectedGroup-1))return false;
-        if(selectedGroup==0 || selectedGroup==17 ||
-            (selectedGroup>=1 && selectedGroup<=16)){
-            return clip.name.toLowerCase(java.util.Locale.ROOT).contains(query);
-        }
-        return true;
+        if(selectedGroup==1 && !OnlineFavorites.valid(clip.uri))return false;
+        if(selectedGroup==2 && OnlineFavorites.valid(clip.uri))return false;
+        return clip.name.toLowerCase(java.util.Locale.ROOT).contains(query);
+    }
+    private void openSearch(String term){
+        Intent i=new Intent(this,MemeSearchActivity.class);
+        if(term!=null&&!term.isEmpty())i.putExtra("query",term);
+        startActivity(i);
+    }
+    @Override protected void onRestart(){
+        super.onRestart();
+        renderSounds();
     }
     private View tile(ClipStore.Clip clip){
         int category=BrandStyle.categoryOf(clip);
@@ -337,7 +355,7 @@ public final class MainActivity extends Activity {
             }
         }
         if(selected.isEmpty()){
-            TextView none=text("No sounds found. Try another category.",13,DIM,false);
+            TextView none=text("No saved memes here. Tap SEARCH ONLINE to find real clips and ★ save your favorites.",13,DIM,false);
             none.setPadding(dp(8),dp(15),dp(8),dp(15));
             soundGrid.addView(none);
         }
