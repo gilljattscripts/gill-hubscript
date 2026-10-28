@@ -28,13 +28,15 @@ final class BrandStyle {
     private static final int[] CATEGORY={
         Color.rgb(207,135,255),Color.rgb(255,168,122),Color.rgb(169,142,255),
         Color.rgb(107,209,255),Color.rgb(148,237,205),Color.rgb(255,201,128),
+        Color.rgb(243,151,183),Color.rgb(138,207,255),Color.rgb(181,145,245),
+        Color.rgb(124,227,218),Color.rgb(238,176,112),Color.rgb(247,136,182),
         Color.rgb(176,172,205)
     };
     static int categoryColor(int index){
         return CATEGORY[Math.max(0,Math.min(index,CATEGORY.length-1))];
     }
     static int categoryOf(ClipStore.Clip clip){
-        return clip.isPreset()?Math.min(5,clip.preset/8):6;
+        return clip.isPreset()?Math.min(11,clip.preset/8):12;
     }
     static GradientDrawable bg(int color,int radiusPx,boolean outline){
         GradientDrawable d=new GradientDrawable();
