@@ -30,16 +30,18 @@ final class BrandStyle {
         Color.rgb(107,209,255),Color.rgb(148,237,205),Color.rgb(255,201,128),
         Color.rgb(243,151,183),Color.rgb(138,207,255),Color.rgb(181,145,245),
         Color.rgb(124,227,218),Color.rgb(238,176,112),Color.rgb(247,136,182),
+        Color.rgb(181,239,179),Color.rgb(146,220,241),
+        Color.rgb(246,177,216),Color.rgb(255,193,133),
         Color.rgb(176,172,205)
     };
     static int categoryColor(int index){
         return CATEGORY[Math.max(0,Math.min(index,CATEGORY.length-1))];
     }
     static int categoryOf(ClipStore.Clip clip){
-        return clip.isPreset()?Math.min(11,clip.preset/8):12;
+        return clip.isPreset()?Math.min(15,clip.preset/8):16;
     }
     static int soundIconForCategory(int category){
-        final int[] icons={0,1,2,3,4,5,1,3,2,4,6,5,6};
+        final int[] icons={0,1,2,3,4,5,1,3,2,4,6,5,1,3,6,2,6};
         return icons[Math.max(0,Math.min(category,icons.length-1))];
     }
     static GradientDrawable bg(int color,int radiusPx,boolean outline){
