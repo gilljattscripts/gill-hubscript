@@ -211,6 +211,17 @@ public final class OverlayService extends Service {
             showFloating();
         });
         gap(box,7);
+        TextView chaos=button(ClipStore.chaos(this)?"DESTROYED MIC FX   /   ON":"DESTROYED MIC FX   /   OFF");
+        chaos.setTextColor(ClipStore.chaos(this)?BrandStyle.GREEN:BrandStyle.LAVENDER);
+        chaos.setCompoundDrawables(BrandStyle.icon(2,dp(16),
+            ClipStore.chaos(this)?BrandStyle.GREEN:BrandStyle.LAVENDER),null,null,null);
+        chaos.setCompoundDrawablePadding(dp(7));
+        box.addView(chaos,new LinearLayout.LayoutParams(-1,dp(36)));
+        chaos.setOnClickListener(v->{
+            ClipStore.chaos(this,!ClipStore.chaos(this));
+            showFloating();
+        });
+        gap(box,7);
 
         ScrollView scroller=new ScrollView(this);
         scroller.setFillViewport(false);
@@ -219,13 +230,15 @@ public final class OverlayService extends Service {
         clips.setOrientation(LinearLayout.VERTICAL);
         scroller.addView(clips);
         List<ClipStore.Clip> library=ClipStore.get(this);
-        final String[] categories={"LOUD / BASS","FUNNY / CARTOON","DRAMA / MEMES","ARCADE / RETRO","EFFECTS / SPACE","ALERTS / EXTRA"};
+        final String[] categories={"LOUD / BASS","FUNNY / CARTOON","DRAMA / MEMES","ARCADE / RETRO",
+            "EFFECTS / SPACE","ALERTS / EXTRA","MEME REACTIONS","GAMING / FAILS",
+            "HORROR / HAUNTED","GLITCH / TECH","MUSIC / STINGS","CHAOS / TROLL"};
         for(int i=0;i<library.size();i+=2){
             if(i<ClipStore.PRESETS.length && i%8==0){
                 TextView section=text(categories[i/8],11,BrandStyle.LAVENDER);
                 section.setTypeface(null,1);
                 section.setGravity(Gravity.CENTER_VERTICAL|Gravity.LEFT);
-                section.setCompoundDrawables(BrandStyle.icon(i/8,dp(17),
+                section.setCompoundDrawables(BrandStyle.icon(BrandStyle.soundIconForCategory(i/8),dp(17),
                     BrandStyle.categoryColor(i/8)),null,null,null);
                 section.setCompoundDrawablePadding(dp(9));
                 LinearLayout.LayoutParams sectionParams=new LinearLayout.LayoutParams(-1,dp(29));
@@ -241,7 +254,7 @@ public final class OverlayService extends Service {
                 final int group=BrandStyle.categoryOf(clip);
                 b.setTextSize(10);
                 b.setPadding(dp(7),dp(6),dp(5),dp(6));
-                b.setCompoundDrawables(BrandStyle.icon(group,dp(16),
+                b.setCompoundDrawables(BrandStyle.icon(BrandStyle.soundIconForCategory(group),dp(16),
                     BrandStyle.categoryColor(group)),null,null,null);
                 b.setCompoundDrawablePadding(dp(5));
                 LinearLayout.LayoutParams tile=new LinearLayout.LayoutParams(0,-1,1);
