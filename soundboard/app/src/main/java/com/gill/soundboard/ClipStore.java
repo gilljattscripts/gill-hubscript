@@ -3,6 +3,7 @@ package com.gill.soundboard;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.net.Uri;
+import java.io.File;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.util.ArrayList;
@@ -57,11 +58,38 @@ final class ClipStore {
             JSONObject object=array.optJSONObject(i);
             if(object==null)continue;
             String uri=object.optString("uri","");
-            if(uri.startsWith("content://")){
+            if(uri.startsWith("content://") || validPacked(c,uri)){
                 result.add(new Clip(-1,object.optString("name","Custom sound"),uri));
             }
         }
         return result;
+    }
+    private static boolean validPacked(Context context,String uri){
+        if(uri==null||!uri.startsWith("file://"))return false;
+        try{
+            File folder=new File(context.getFilesDir(),"imported_memes").getCanonicalFile();
+            File candidate=new File(Uri.parse(uri).getPath()).getCanonicalFile();
+            return candidate.isFile() && candidate.getParentFile().equals(folder);
+        }catch(Exception ignored){return false;}
+    }
+    static boolean addPacked(Context c,String name,File file){
+        if(file==null)return false;
+        String path=Uri.fromFile(file).toString();
+        if(!validPacked(c,path))return false;
+        JSONArray arr=imported(c);
+        if(arr.length()>=500)return false;
+        for(int i=0;i<arr.length();i++){
+            JSONObject item=arr.optJSONObject(i);
+            if(item!=null && path.equals(item.optString("uri")))return false;
+        }
+        try{
+            JSONObject item=new JSONObject();
+            item.put("name",name.length()>75?name.substring(0,75):name);
+            item.put("uri",path);
+            arr.put(item);
+            prefs(c).edit().putString("clips",arr.toString()).apply();
+            return true;
+        }catch(Exception ignored){return false;}
     }
     static boolean add(Context c,String name,Uri uri) {
         String str=uri.toString();
