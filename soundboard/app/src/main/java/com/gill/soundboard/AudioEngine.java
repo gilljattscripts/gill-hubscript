@@ -20,6 +20,7 @@ final class AudioEngine {
     private static final int MAX_STREAMS=10;
     private static SoundPool pool;
     private static final Map<Integer,Integer> presetIds=new HashMap<>();
+    private static final Map<Integer,Integer> chaosIds=new HashMap<>();
     private static final HashSet<Integer> ready=new HashSet<>();
     private static final ArrayDeque<Voice> voices=new ArrayDeque<>();
     private static final List<MediaPlayer> activeFiles=new ArrayList<>();
@@ -48,6 +49,13 @@ final class AudioEngine {
             if(resource==0)continue;
             int id=pool.load(app,resource,1);
             if(id!=0)presetIds.put(n,id);
+            int chaosResource=app.getResources().getIdentifier(
+                String.format(java.util.Locale.US,"gill_chaos_%02d",n),
+                "raw",app.getPackageName());
+            if(chaosResource!=0){
+                int chaosId=pool.load(app,chaosResource,1);
+                if(chaosId!=0)chaosIds.put(n,chaosId);
+            }
         }
     }
     static synchronized void stop(){
@@ -69,7 +77,7 @@ final class AudioEngine {
     }
     private static void playPreset(Context context,int index){
         prepare(context);
-        Integer id=presetIds.get(index);
+        Integer id=ClipStore.chaos(context)?chaosIds.get(index):presetIds.get(index);
         if(id==null||!ready.contains(id))return;
         final long now=SystemClock.uptimeMillis();
         while(!voices.isEmpty() && voices.peekFirst().expiry<now){
@@ -79,7 +87,7 @@ final class AudioEngine {
             Voice old=voices.removeFirst();
             pool.stop(old.stream);
         }
-        float base=ClipStore.volume(context)/100f;
+        float base=ClipStore.volume(context)/100f*(ClipStore.chaos(context)?0.78f:1.0f);
         int stream=pool.play(id,base*.70f,base*.70f,1,0,1f);
         if(stream==0)return;
         voices.addLast(new Voice(stream,now+1000));
