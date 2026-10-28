@@ -8,6 +8,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import numpy as np
 import sounddevice as sd
+from voice_fx import VoiceProcessor, VOICE_MODES
 
 NAMES = [
     "BASS BOOM","AIR HORN","BONK","BOING","LASER","ERROR","SCRATCH","GLITCH",
@@ -15,13 +16,22 @@ NAMES = [
     "CHIRP","METAL HIT","REWIND","WHOOSH","ALARM","ARCADE","BEEP SPAM","SPACE BLIP",
     "RECORD STOP","8-BIT HIT","DARK PULSE","CARTOON SLIDE","RADIO STATIC","BELL","PING","TRUMPET",
     "BUBBLE","BASS DROP","UFO","CLOCK TICK","VHS GLITCH","SMASH","DIZZY","SPARK",
-    "GAME OVER","SUCCESS","WARNING","POWER UP","SQUEAK","SCREAM SYNTH","KNOCK","SCI-FI SHOT"
+    "GAME OVER","SUCCESS","WARNING","POWER UP","SQUEAK","SCREAM SYNTH","KNOCK","SCI-FI SHOT",
+    "BRUH BASS","SHEESH WHISTLE","CLOWN HONK","RUBBER DUCK","AWKWARD BUZZ","VINE BOOM","SNORT","SPROING",
+    "ROUND LOST","ROUND WON","ITEM FOUND","BOSS ARRIVES","NOPE BUZZER","CHECKPOINT","HIT CONFIRM","TIME OUT",
+    "JUMPSCARE","CREEPY CHOIR","GHOST SWOOSH","HEARTBEAT","DOOR CREAK","DARK DRONE","WHISPER SYNTH","EVIL GIGGLE",
+    "DATA CRASH","DIGITAL BURST","MODEM BLIP","CYBER SIREN","STATIC SWEEP","PIXEL BREAK","ROBOT BLIP","SIGNAL LOST",
+    "VICTORY FANFARE","TENSION STING","8BIT BOUNCE","MYSTERY CHORD","SAD TROMBONE","RAPID DRUM","BATTLE INTRO","LAST SECOND",
+    "CHAOS HORN","MIC DESTROYED","MEGA BOOM","HYPER BEEP","WOBBLE BASS","BRAIN FREEZE","ALIEN SQUEAL","OVERLOAD"
 ]
 CATEGORIES=["LOUD / BASS","FUNNY / CARTOON","DRAMA / MEMES",
-            "ARCADE / RETRO","EFFECTS / SPACE","ALERTS / EXTRA"]
+            "ARCADE / RETRO","EFFECTS / SPACE","ALERTS / EXTRA",
+            "MEME REACTIONS","GAMING / FAILS","HORROR / HAUNTED",
+            "GLITCH / TECH","MUSIC / STINGS","CHAOS / TROLL"]
 BG="#0d0c17"; PANEL="#191626"; CARD="#292239"
 ORANGE="#a663ff"; WHITE="#f5f0ff"; DIM="#b6accb"
-COLORS=["#cf8cff","#ffc389","#bd9dff","#80d8ff","#a0f1d5","#ffd395"]
+COLORS=["#cf8cff","#ffc389","#bd9dff","#80d8ff","#a0f1d5","#ffd395",
+        "#f39aba","#85cfff","#b68ff6","#7ce2d9","#eab078","#f58bb6"]
 
 def asset_root():
     if getattr(sys,"frozen",False):
@@ -40,12 +50,25 @@ class Mixer:
     def __init__(self):
         self.lock=threading.Lock()
         self.samples=[load_sound(i) for i in range(len(NAMES))]
+        self.chaos_samples=[self.make_destroyed_effect(x) for x in self.samples]
         self.voices=[]
+        self.chaos_mode=False
+        self.voice_mode="CLEAN"
+        self.voice_strength=.65
+        self.processor=VoiceProcessor()
         self.stream=None
         self.voice_volume=.92
         self.effect_volume=.90
         self.master=.84
         self.maximum_voices=12
+
+    @staticmethod
+    def make_destroyed_effect(sample):
+        # Render once at startup; switching or spamming never reprocesses a clip.
+        held=sample[(np.arange(len(sample))//24)*24]
+        crushed=np.round(np.tanh(held*4.2)*10)/10.0
+        result=np.tanh(crushed*2.6)*.70
+        return np.ascontiguousarray(result.astype("float32"))
 
     def stop(self):
         if self.stream is not None:
@@ -58,6 +81,8 @@ class Mixer:
 
     def start(self,out_id,mic_id):
         self.stop()
+        self.processor.reset()
+        stream=None
         try:
             if mic_id is None:
                 stream=sd.OutputStream(
@@ -79,7 +104,8 @@ class Mixer:
         if self.stream is None:return
         with self.lock:
             if len(self.voices)>=self.maximum_voices:self.voices.pop(0)
-            self.voices.append([self.samples[index],0])
+            sound=self.chaos_samples[index] if self.chaos_mode else self.samples[index]
+            self.voices.append([sound,0])
 
     def clear(self):
         with self.lock:self.voices.clear()
@@ -88,8 +114,9 @@ class Mixer:
         # Allocation-free mix buffer (provided by PortAudio).
         outdata.fill(0)
         if mic is not None:
-            outdata[:,0]=mic[:,0]*self.voice_volume
-            outdata[:,1]=mic[:,0]*self.voice_volume
+            processed=self.processor.process(mic[:,0],self.voice_mode,self.voice_strength)
+            outdata[:,0]=processed*self.voice_volume
+            outdata[:,1]=processed*self.voice_volume
         with self.lock:
             live=[]
             for sample,pos in self.voices:
@@ -123,6 +150,7 @@ class App(tk.Tk):
             if icon.exists():self.iconbitmap(str(icon))
         except Exception:pass
         self.mixer=Mixer()
+        self.voice_effect=tk.StringVar(value="CLEAN")
         self.repeat=False
         self.repeat_id=None
         self.repeat_task=None
@@ -165,7 +193,7 @@ class App(tk.Tk):
         heading=tk.Frame(top,bg=BG)
         heading.pack(side="left",fill="x",expand=True)
         self.text(heading,"GILL SOUNDBOARD",23,WHITE,True).pack(anchor="w")
-        self.text(heading,"48 BUILT-IN SOUNDS  /  NO ADS  /  INSTANT PLAYBACK",10,ORANGE,True).pack(anchor="w")
+        self.text(heading,"96 BUILT-IN SOUNDS  /  VOICE FX  /  NO ADS",10,ORANGE,True).pack(anchor="w")
         self.text(heading,"Real-time microphone mixing and virtual-cable output",10,DIM).pack(anchor="w",pady=(5,0))
 
         settings=tk.Frame(self,bg=PANEL);settings.pack(fill="x",padx=22,pady=6,ipady=8)
