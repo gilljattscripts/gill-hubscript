@@ -23,16 +23,22 @@ NAMES = [
     "JUMPSCARE","CREEPY CHOIR","GHOST SWOOSH","HEARTBEAT","DOOR CREAK","DARK DRONE","WHISPER SYNTH","EVIL GIGGLE",
     "DATA CRASH","DIGITAL BURST","MODEM BLIP","CYBER SIREN","STATIC SWEEP","PIXEL BREAK","ROBOT BLIP","SIGNAL LOST",
     "VICTORY FANFARE","TENSION STING","8BIT BOUNCE","MYSTERY CHORD","SAD TROMBONE","RAPID DRUM","BATTLE INTRO","LAST SECOND",
-    "CHAOS HORN","MIC DESTROYED","MEGA BOOM","HYPER BEEP","WOBBLE BASS","BRAIN FREEZE","ALIEN SQUEAL","OVERLOAD"
+    "CHAOS HORN","MIC DESTROYED","MEGA BOOM","HYPER BEEP","WOBBLE BASS","BRAIN FREEZE","ALIEN SQUEAL","OVERLOAD",
+    "SOFT BREATH","NERVOUS GASP","FAKE CHUCKLE","THROAT CLEAR","SHARP SIGH","HMM VOICE","HUH VOICE","FAKE COUGH",
+    "KEYBOARD TAP","RAPID TYPING","MECHANICAL KEYS","SPACEBAR","MOUSE CLICK","DOUBLE CLICK","DESK THUMP","HEADSET RUSTLE",
+    "UH OH VOICE","SHORT LAUGH","CONFUSED HUM","YAWN FX","ROBOT GASP","VOICE CRACK","CARTOON SNEEZE","FAKE WHISPER",
+    "DISTORTED LAUGH","GLITCH VOICE","KEYBOARD RAGE","LOUD EXHALE","STREAM ALERT","TAP STORM","PUNCHLINE","LAST STRAW"
 ]
 CATEGORIES=["LOUD / BASS","FUNNY / CARTOON","DRAMA / MEMES",
             "ARCADE / RETRO","EFFECTS / SPACE","ALERTS / EXTRA",
             "MEME REACTIONS","GAMING / FAILS","HORROR / HAUNTED",
-            "GLITCH / TECH","MUSIC / STINGS","CHAOS / TROLL"]
+            "GLITCH / TECH","MUSIC / STINGS","CHAOS / TROLL",
+            "VOICE REACTIONS","KEYBOARD / DESK","VOICE / FUNNY","CHAOS / EXTRA"]
 BG="#0d0c17"; PANEL="#191626"; CARD="#292239"
 ORANGE="#a663ff"; WHITE="#f5f0ff"; DIM="#b6accb"
 COLORS=["#cf8cff","#ffc389","#bd9dff","#80d8ff","#a0f1d5","#ffd395",
-        "#f39aba","#85cfff","#b68ff6","#7ce2d9","#eab078","#f58bb6"]
+        "#f39aba","#85cfff","#b68ff6","#7ce2d9","#eab078","#f58bb6",
+        "#b7f3aa","#8fdbed","#f3b4e1","#ffd395"]
 
 def asset_root():
     if getattr(sys,"frozen",False):
@@ -209,7 +215,7 @@ class App(tk.Tk):
         heading=tk.Frame(top,bg=BG)
         heading.pack(side="left",fill="x",expand=True)
         self.text(heading,"GILL SOUNDBOARD",23,WHITE,True).pack(anchor="w")
-        self.text(heading,"96 BUILT-IN SOUNDS  /  VOICE FX  /  NO ADS",10,ORANGE,True).pack(anchor="w")
+        self.text(heading,"128 BUILT-IN SOUNDS  /  TYPE TO SPEAK  /  LIVE VOICE FX",10,ORANGE,True).pack(anchor="w")
         self.text(heading,"Real-time microphone mixing and virtual-cable output",10,DIM).pack(anchor="w",pady=(5,0))
 
         settings=tk.Frame(self,bg=PANEL);settings.pack(fill="x",padx=22,pady=6,ipady=8)
