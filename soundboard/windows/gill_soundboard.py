@@ -39,7 +39,8 @@ class Mixer:
         self.voice_volume=.92
         self.effect_volume=.90
         self.master=.84
-        self.maximum_voices=12
+        self.maximum_voices=1
+        self.loop_source=None
 
     @staticmethod
     def make_destroyed_effect(sample):
@@ -81,24 +82,52 @@ class Mixer:
 
     def set_loop(self, sample=None):
         with self.lock:
-            self.loop_sample=np.ascontiguousarray(sample,dtype=np.float32) if sample is not None else None
+            if sample is None:
+                self.loop_source=None
+                self.loop_sample=None
+                self.loop_position=0
+                return
+            original=np.array(sample,dtype=np.float32,copy=True,order="C")
+            if original.ndim!=2 or original.shape[1]!=2 or len(original)==0:
+                self.loop_source=None
+                self.loop_sample=None
+                self.loop_position=0
+                return
+            self.voices.clear()
+            self.loop_source=original
+            looped=self.make_destroyed_effect(original) if self.chaos_mode else original.copy()
+            # Blend the loop seam over 8-10 ms to avoid a click at each restart.
+            cross=min(480,len(looped)//4)
+            if cross>1:
+                ramp=np.linspace(0.0,1.0,cross,dtype=np.float32)[:,None]
+                looped[-cross:]=looped[-cross:]*(1.0-ramp)+looped[:cross]*ramp
+            self.loop_sample=np.ascontiguousarray(looped)
             self.loop_position=0
 
-    def play_audio(self,audio):
-        # The synthesized voice goes into the same live PortAudio output as your sounds.
+    def play_audio(self,audio,apply_chaos=True):
+        # A new click replaces the current clip. Never mix repeated copies of one sound.
         if self.stream is None:return False
-        sample=np.asarray(audio,dtype=np.float32)
+        sample=np.array(audio,dtype=np.float32,copy=True,order="C")
         if sample.ndim!=2 or sample.shape[1]!=2 or len(sample)==0:return False
+        if apply_chaos and self.chaos_mode:
+            sample=self.make_destroyed_effect(sample)
+        # Short cosine fade-in avoids a hard transient when a sound replaces another.
+        fade=min(240,len(sample))
+        if fade>1:
+            ramp=(0.5-0.5*np.cos(np.linspace(0.0,np.pi,fade,dtype=np.float32)))[:,None]
+            sample[:fade]*=ramp
         with self.lock:
-            while len(self.voices)>=self.maximum_voices:self.voices.pop(0)
-            if self.chaos_mode:
-                sample=self.make_destroyed_effect(sample)
+            self.voices.clear()
+            self.loop_source=None
+            self.loop_sample=None
+            self.loop_position=0
             self.voices.append([np.ascontiguousarray(sample),0])
         return True
 
     def clear(self):
         with self.lock:
             self.voices.clear()
+            self.loop_source=None
             self.loop_sample=None
             self.loop_position=0
 
@@ -164,6 +193,10 @@ class App(tk.Tk):
         self.search=tk.StringVar()
         self.current_results=[]
         self.loaded_samples={}
+        self.loading_items=set()
+        self.pending_generation={}
+        self.play_generation=0
+        self.current_item_url=None
         self.loop_mode=False
         self.online_busy=False
         self.out_list=[]
@@ -419,7 +452,11 @@ class App(tk.Tk):
 
     def toggle_loop(self):
         self.loop_mode=not self.loop_mode
-        if not self.loop_mode:self.mixer.set_loop(None)
+        if self.loop_mode:
+            sample=self.loaded_samples.get(self.current_item_url)
+            if sample is not None:self.mixer.set_loop(sample)
+        else:
+            self.mixer.set_loop(None)
         self.loopbtn.configure(text="LOOP: ON" if self.loop_mode else "LOOP: OFF",
             bg=ORANGE if self.loop_mode else CARD,fg=BG if self.loop_mode else WHITE)
 
@@ -482,19 +519,29 @@ class App(tk.Tk):
             fg="#77e7ab")
 
     def play_meme(self,item):
+        # Only the newest requested sound may start after an async download completes.
+        self.play_generation+=1
+        generation=self.play_generation
+        self.current_item_url=item.url
         if self.mixer.stream is None:
             messagebox.showinfo("Audio output","Select output and press CONNECT first.")
             return
+        self.mixer.clear()
         cached=self.loaded_samples.get(item.url)
         if cached is not None:
             if self.loop_mode:
-                sound=self.mixer.make_destroyed_effect(cached) if self.mixer.chaos_mode else cached
-                self.mixer.set_loop(sound)
+                self.mixer.set_loop(cached)
             else:
                 self.mixer.play_audio(cached)
             self.sound_status.configure(text="PLAYING / "+item.title[:40],fg="#74e6ab")
             return
+
+        self.pending_generation[item.url]=generation
         self.sound_status.configure(text="LOADING ACTUAL MEME / "+item.title[:30],fg=ORANGE)
+        if item.url in self.loading_items:
+            return
+        self.loading_items.add(item.url)
+
         def fetch():
             try:
                 if item.url.startswith("file:"):
@@ -505,29 +552,50 @@ class App(tk.Tk):
             except Exception as ex:
                 audio=None
                 failure=str(ex)
+
             def completed():
+                self.loading_items.discard(item.url)
+                token=self.pending_generation.pop(item.url,None)
                 if failure:
-                    self.sound_status.configure(text="SOUND UNAVAILABLE",fg="#ff928d")
-                    messagebox.showerror("Real meme sound",failure)
+                    if token==self.play_generation and self.current_item_url==item.url:
+                        self.sound_status.configure(text="SOUND UNAVAILABLE",fg="#ff928d")
+                        messagebox.showerror("Real meme sound",failure)
                     return
-                if len(self.loaded_samples)>=25:
+                if len(self.loaded_samples)>=25 and item.url not in self.loaded_samples:
                     self.loaded_samples.pop(next(iter(self.loaded_samples)),None)
                 self.loaded_samples[item.url]=audio
-                self.play_meme(item)
+                # Cache stale requests, but never let them interrupt the user's newer choice.
+                if token!=self.play_generation or self.current_item_url!=item.url:
+                    return
+                if self.loop_mode:
+                    self.mixer.set_loop(audio)
+                else:
+                    self.mixer.play_audio(audio)
+                self.sound_status.configure(text="PLAYING / "+item.title[:40],fg="#74e6ab")
+                if self.repeat and self.repeat_id==item.url and not self.loop_mode:
+                    self._schedule_repeat(item.url)
             try:self.after(0,completed)
             except Exception:pass
         threading.Thread(target=fetch,daemon=True).start()
 
     def play_favorite_hotkey(self,index):
         saved=favorites()
-        if index<len(saved):self.play_meme(saved[index])
+        if index<len(saved):self.press(saved[index])
 
     def press(self,item):
         self.cancel_spam()
         self.play_meme(item)
-        if self.repeat and item.url in self.loaded_samples:
+        if self.repeat:
             self.repeat_id=item.url
-            self.repeat_task=self.after(int(self.interval.get()),self.repeat_play)
+            if item.url in self.loaded_samples and not self.loop_mode:
+                self._schedule_repeat(item.url)
+
+    def _schedule_repeat(self,url):
+        if self.repeat_task is not None:
+            try:self.after_cancel(self.repeat_task)
+            except Exception:pass
+        self.repeat_id=url
+        self.repeat_task=self.after(int(self.interval.get()),self.repeat_play)
 
     def repeat_play(self):
         if self.repeat_id is None or not self.repeat:return
@@ -602,7 +670,7 @@ class App(tk.Tk):
                 def completed():
                     self.tts_busy=False
                     self.speakbtn.configure(state="normal")
-                    played=self.mixer.play_audio(wave)
+                    played=self.mixer.play_audio(wave,apply_chaos=False)
                     self.tts_status_label.configure(
                         text=("SPEAKING • NEURAL" if neural else "SPEAKING • WINDOWS VOICE")
                             if played else "OUTPUT DISCONNECTED",
@@ -630,6 +698,9 @@ class App(tk.Tk):
     def toggle_chaos(self):
         self.mixer.chaos_mode=not self.mixer.chaos_mode
         enabled=self.mixer.chaos_mode
+        # Re-render an active loop from its clean source so the toggle takes effect immediately.
+        if self.mixer.loop_source is not None:
+            self.mixer.set_loop(self.mixer.loop_source)
         self.chaosbtn.configure(text="SOUND CHAOS: ON" if enabled else "SOUND CHAOS: OFF",
                                 bg=ORANGE if enabled else CARD,fg=BG if enabled else WHITE)
 
