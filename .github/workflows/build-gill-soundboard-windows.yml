@@ -30,6 +30,7 @@ jobs:
           python soundboard/windows/test_voice_fx.py
           python soundboard/windows/test_meme_browser.py
           python soundboard/windows/test_meme_packs.py
+          python soundboard/windows/test_mixer_playback.py
       - name: Build standalone Windows EXE
         run: pyinstaller --noconfirm --clean --onefile --windowed --name GILL-Soundboard --icon soundboard/windows/gill_icon.ico --add-data "soundboard/windows/gill_icon.ico;." --add-data "soundboard/windows/assets/gill_logo_small.png;assets" --add-data "soundboard/windows/assets/gill_soundpack.txt;assets" --collect-all _sounddevice_data --collect-all edge_tts --collect-all miniaudio soundboard/windows/gill_soundboard.py
       - name: Upload Windows app
