@@ -710,6 +710,10 @@ class App(tk.Tk):
         self.topbtn.configure(text="TOPMOST: ON" if self.topmost else "TOPMOST: OFF")
     def stop_sounds(self):
         self.cancel_spam()
+        # Invalidate downloads still in flight so STOP cannot be followed by surprise playback.
+        self.play_generation+=1
+        self.current_item_url=None
+        self.pending_generation.clear()
         self.mixer.clear()
     def refresh_devices(self):
         self.out_list=[]
