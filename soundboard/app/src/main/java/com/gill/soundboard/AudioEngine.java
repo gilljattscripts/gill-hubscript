@@ -3,6 +3,11 @@ package com.gill.soundboard;
 import android.content.Context;
 import android.media.AudioAttributes;
 import android.media.MediaPlayer;
+import android.media.PlaybackParams;
+import android.media.audiofx.AudioEffect;
+import android.media.audiofx.BassBoost;
+import android.media.audiofx.Equalizer;
+import android.media.audiofx.LoudnessEnhancer;
 import android.media.SoundPool;
 import android.net.Uri;
 import android.os.SystemClock;
@@ -24,6 +29,7 @@ final class AudioEngine {
     private static final HashSet<Integer> ready=new HashSet<>();
     private static final ArrayDeque<Voice> voices=new ArrayDeque<>();
     private static final List<MediaPlayer> activeFiles=new ArrayList<>();
+    private static final Map<MediaPlayer,List<AudioEffect>> fileEffects=new HashMap<>();
     private static final class Voice {
         int stream;
         long expiry;
@@ -67,11 +73,14 @@ final class AudioEngine {
         }
         for(MediaPlayer mp:new ArrayList<>(activeFiles)){
             try{mp.stop();}catch(Exception ignored){}
+            releaseEffects(mp);
             try{mp.release();}catch(Exception ignored){}
         }
         activeFiles.clear();
     }
     static synchronized void play(Context context,ClipStore.Clip clip){
+        // A tap replaces the current sound. Never stack MediaPlayers or duplicate streams.
+        stop();
         if(clip.isPreset())playPreset(context,clip.preset);
         else if(clip.uri!=null)playFile(context,Uri.parse(clip.uri));
     }
@@ -119,8 +128,10 @@ final class AudioEngine {
             mp.setOnPreparedListener(player->{
                 synchronized(AudioEngine.class){
                     if(activeFiles.contains(player)){
-                        float level=ClipStore.volume(context)/100f*.6f;
+                        boolean chaos=ClipStore.chaos(context);
+                        float level=ClipStore.volume(context)/100f*(chaos?.48f:.60f);
                         player.setVolume(level,level);
+                        if(chaos)applyChaos(player);
                         player.setLooping(ClipStore.loop(context));
                         player.start();
                     }
@@ -140,8 +151,51 @@ final class AudioEngine {
             try{player.setLooping(enable);}catch(Exception ignored){}
         }
     }
+    private static void applyChaos(MediaPlayer player){
+        int session=player.getAudioSessionId();
+        if(session<=0)return;
+        ArrayList<AudioEffect> effects=new ArrayList<>();
+        try{
+            Equalizer eq=new Equalizer(0,session);
+            short[] range=eq.getBandLevelRange();
+            short bands=eq.getNumberOfBands();
+            for(short band=0;band<bands;band++){
+                int amount=(band<bands/3)?700:(band>=2*bands/3?900:250);
+                short level=(short)Math.min(range[1],Math.max(range[0],amount));
+                eq.setBandLevel(band,level);
+            }
+            eq.setEnabled(true);
+            effects.add(eq);
+        }catch(Exception ignored){}
+        try{
+            BassBoost bass=new BassBoost(0,session);
+            bass.setStrength((short)850);
+            bass.setEnabled(true);
+            effects.add(bass);
+        }catch(Exception ignored){}
+        try{
+            LoudnessEnhancer loud=new LoudnessEnhancer(session);
+            loud.setTargetGain(550);
+            loud.setEnabled(true);
+            effects.add(loud);
+        }catch(Exception ignored){}
+        try{
+            if(android.os.Build.VERSION.SDK_INT>=23)
+                player.setPlaybackParams(new PlaybackParams().setPitch(.76f).setSpeed(1.0f));
+        }catch(Exception ignored){}
+        if(!effects.isEmpty())fileEffects.put(player,effects);
+    }
+    private static void releaseEffects(MediaPlayer player){
+        List<AudioEffect> effects=fileEffects.remove(player);
+        if(effects==null)return;
+        for(AudioEffect effect:effects){
+            try{effect.setEnabled(false);}catch(Exception ignored){}
+            try{effect.release();}catch(Exception ignored){}
+        }
+    }
     private static synchronized void releaseFile(MediaPlayer mp){
         activeFiles.remove(mp);
+        releaseEffects(mp);
         try{mp.release();}catch(Exception ignored){}
     }
 }
